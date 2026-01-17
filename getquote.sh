@@ -91,6 +91,10 @@ else
   exit 1
 fi
 
+opt_year=$(date --date="Next Friday" +"%Y")
+opt_month=$(date --date="Next Friday" +"%m")
+opt_day=$(date --date="Next Friday" +"%d")
+
 nonce=$(date +%s.%N | openssl base64 | sed -e 's/[+=/]//g')
 
 no_strikes=12
@@ -105,9 +109,9 @@ option_params["oauth_timestamp"]="${timestamp}"
 option_params["oauth_token"]="${encoded_access_token}"
 option_params["strikePriceNear"]="${quote_price}"
 option_params["symbol"]="${quote_symbol}"
-option_params["expiryYear"]="2026"
-option_params["expiryMonth"]="1"
-option_params["expiryDay"]="16"
+option_params["expiryYear"]="${opt_year}"
+option_params["expiryMonth"]="${opt_month}"
+option_params["expiryDay"]="${opt_day}"
 
 encoded_option_signature=$( \
   calculate_hmacsha1_signature ${http_method} ${option_url} option_params ${secret_value} ${decoded_access_secret} \
@@ -127,7 +131,7 @@ if [ -f $option_file ]; then
   rm $option_file
 fi
 
-full_option_url="${option_url}?symbol=${quote_symbol}&strikePriceNear=${quote_price}&noOfStrikes=${no_strikes}&expiryYear=2026&expiryMonth=1&expiryDay=16"
+full_option_url="${option_url}?symbol=${quote_symbol}&strikePriceNear=${quote_price}&noOfStrikes=${no_strikes}&expiryYear=${opt_year}&expiryMonth=${opt_month}&expiryDay=${opt_day}"
 
 http_get "${full_option_url}" option_params ${option_file} 
 
