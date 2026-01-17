@@ -34,14 +34,14 @@ if [ -z access_response ]; then
   unset encoded_access_secret
 fi
 
-if access_token_id=$(keyctl request user etrade_api_token); then
+if access_token_id=$(keyctl request user etrade_api_token 2>/dev/null); then
   access_token=$(keyctl pipe "${access_token_id}")
 else
   unset access_token
 fi
 unset access_token_id
 
-if access_secret_id=$(keyctl request user etrade_api_secret); then
+if access_secret_id=$(keyctl request user etrade_api_secret 2>/dev/null); then
   access_secret=$(keyctl pipe "${access_secret_id}")
 else
   unset access_secret
