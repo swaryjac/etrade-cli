@@ -8,8 +8,9 @@ fi
 
 all_symbols=$(cat ${option_list_file} | awk '{print $2}')
 
-output_file=onepct_options.txt
-output_csv_file=onepct_options.csv
+date_string=$(date +"%Y"-"%m"-"%d")
+output_file=onepct_options${date_string}.txt
+output_csv_file=onepct_options${date_string}.csv
 
 if [ -f $output_file ]; then
   rm $output_file
