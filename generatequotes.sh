@@ -44,15 +44,24 @@ fi
 for symbol in ${all_symbols}; do
   symbol=$(echo $symbol | sed 's/"//g');
 
-  if ! ${quote_script} ${symbol} ; then
-    echo "'${quote_script} ${symbol}' failed"
-    exit 1
-  fi
+  num_attempts=3
+  for i in $(seq 1 ${num_attempts}); do
+    if ! ${quote_script} ${symbol} ; then
+      echo "'${quote_script} ${symbol}' failed"
+    else
+      break;
+    fi
+  done
 
 
+  expected_opt_file="${output_dir}/${symbol}_opt.json"
   expected_file="${output_dir}/${symbol}.json"
   if [ ! -f ${expected_file} ]; then
     echo "${expected_file} not found"
+    continue;
+  fi
+  if [ ! -f ${expected_opt_file} ]; then
+    echo "${expected_opt_file} not found"
     continue;
   fi
 
