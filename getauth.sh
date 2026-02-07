@@ -39,20 +39,13 @@ encoded_request_signature=$( \
 )
 
 if [ ! $? -eq 0 ]; then
-  echo error
+  echo Error calculating HMAC-SHA1 Signature for Token Request
   exit 1
 fi
 
 request_params["oauth_signature"]="${encoded_request_signature}"
 
-#token_file="request_token.txt"
-#if [ -f $token_file ]; then
-#  rm $token_file
-#fi
-
 request_token_response=$(http_get "${oauth_request_url}" request_params)
-
-#token_response=$(cat ${token_file})
 
 if [[ "${request_token_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)\&oauth_callback_confirmed.* ]]; then
   encoded_request_token="${BASH_REMATCH[1]}"
@@ -93,28 +86,17 @@ encoded_authorize_oauth_signature=$( \
   calculate_hmacsha1_signature ${http_method} ${oauth_access_url} authorize_params ${secret_value} ${decoded_request_secret} \
 )
 
+if [ ! $? -eq 0 ]; then
+  echo Error calculating HMAC-SHA1 Signature for Authorization Request
+  exit 1
+fi
+
 authorize_params["oauth_signature"]="${encoded_authorize_oauth_signature}"
 
-#access_token_file="access_token.txt"
-#if [ -f $access_token_file ]; then
-#  rm $access_token_file
-#fi
-
 access_response=$(http_get "${oauth_access_url}" authorize_params)
-
-#access_response=$(cat ${access_token_file})
 
 if ! set_access_keys "${access_response}"; then
   echo "${access_response}" >> access_response.txt
   echo "response parsing failed, output in access_response.txt"
 fi
-
-#if [[ "${access_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)$ ]]; then
-#  encoded_access_token="${BASH_REMATCH[1]}"
-#  encoded_access_secret="${BASH_REMATCH[2]}"
-#  echo "token: ${encoded_access_token}, secret: ${encoded_access_secret}"
-#else
-#  echo "response parsing failed"
-#  exit 1
-#fi
 
