@@ -17,19 +17,15 @@ if [ -z ${secret_value} ]; then
   exit 1
 fi
 
-if [[ -z "${access_token}" || -z "${access_secret}" ]]; then
+
+if ! retrieve_auth_keys; then
   authorize_script="./getauth.sh"
   if [ ! -f ${authorize_script} ]; then
     echo "no access or secret token, no ${authorize_script} script found"
     exit 1
   fi
-  if ! ${authorize_script} ; then
-    echo "no access or secret token, ${authorize_script} failed"
-    exit 1
-  fi
-  source ${definitions_file}
-  if [[ -z "${access_token}" || -z "${access_secret}" ]]; then
-    echo "Failed authorization"
+  if ! ${authorize_script} || ! retrieve_auth_keys ; then
+    echo "${authorize_script} failed to authorize access"
     exit 1
   fi
 fi

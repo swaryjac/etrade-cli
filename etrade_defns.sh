@@ -20,19 +20,30 @@ else
   unset secret_value
 fi
 
-if access_token_id=$(keyctl request user etrade_api_token 2>/dev/null); then
-  access_token=$(keyctl pipe "${access_token_id}")
-else
-  unset access_token
-fi
-unset access_token_id
+auth_token_keyname="etrade_api_token"
+auth_secret_keyname="etrade_api_secret"
 
-if access_secret_id=$(keyctl request user etrade_api_secret 2>/dev/null); then
-  access_secret=$(keyctl pipe "${access_secret_id}")
-else
-  unset access_secret
-fi
-unset access_secret_id
+function retrieve_auth_keys() {
+  local access_token_id=$(keyctl request user ${auth_token_keyname} 2>/dev/null)
+  if [ $? -eq 0 ]; then
+    export access_token=$(keyctl pipe "${access_token_id}")
+  else
+    unset access_token
+    unset access_secret
+    return 1
+  fi
+
+  local access_secret_id=$(keyctl request user ${auth_secret_keyname} 2>/dev/null)
+  if [ $? -eq 0 ]; then
+    export access_secret=$(keyctl pipe "${access_secret_id}")
+  else
+    unset access_token
+    unset access_secret
+    return 1
+  fi
+
+  return 0
+}
 
 function pctEncode() {
   local length="${#1}"
@@ -59,7 +70,7 @@ function pctDecode() {
   if [ -n "${strg}" ] ; then pctDecode "${strg}"; fi
 }
 
-function set_key() {
+function set_volatile_key() {
   local key_name="$1"
   local key_value="$2"
   echo $key_name $key_value
@@ -79,16 +90,16 @@ function set_access_keys() {
     return 1
   fi
   local encoded_access_token="${BASH_REMATCH[1]}"
-  if ! set_key etrade_api_token "${encoded_access_token}"; then
+  if ! set_volatile_key ${auth_token_keyname} "${encoded_access_token}"; then
     return 1
   fi
 echo token
 
   local encoded_access_secret="${BASH_REMATCH[2]}"
-  if ! set_key etrade_api_secret "${encoded_access_secret}"; then
+  if ! set_volatile_key ${auth_secret_keyname} "${encoded_access_secret}"; then
     return 1
   fi
-  
+
   return 0
 }
 

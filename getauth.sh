@@ -17,10 +17,6 @@ if [ -z ${secret_value} ]; then
   exit 1
 fi
 
-if [[ -z "${access_token}" || -z "${access_secret}" ]]; then
-  echo "no access or secret token"
-fi
-
 http_method=GET
 
 timestamp=$(date +%s)
