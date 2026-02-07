@@ -20,31 +20,6 @@ else
   unset secret_value
 fi
 
-auth_token_keyname="etrade_api_token"
-auth_secret_keyname="etrade_api_secret"
-
-function retrieve_auth_keys() {
-  local access_token_id=$(keyctl request user ${auth_token_keyname} 2>/dev/null)
-  if [ $? -eq 0 ]; then
-    export access_token=$(keyctl pipe "${access_token_id}")
-  else
-    unset access_token
-    unset access_secret
-    return 1
-  fi
-
-  local access_secret_id=$(keyctl request user ${auth_secret_keyname} 2>/dev/null)
-  if [ $? -eq 0 ]; then
-    export access_secret=$(keyctl pipe "${access_secret_id}")
-  else
-    unset access_token
-    unset access_secret
-    return 1
-  fi
-
-  return 0
-}
-
 function pctEncode() {
   local length="${#1}"
   for ((n = 0; n < length; n++)); do
@@ -70,6 +45,9 @@ function pctDecode() {
   if [ -n "${strg}" ] ; then pctDecode "${strg}"; fi
 }
 
+auth_token_keyname="etrade_api_token"
+auth_secret_keyname="etrade_api_secret"
+
 function set_volatile_key() {
   local key_name="$1"
   local key_value="$2"
@@ -83,7 +61,7 @@ function set_volatile_key() {
   # returns either add success, update success or request or update fail
 }
 
-function set_access_keys() {
+function set_auth_keys() {
   local access_response_text="$1"
 
   if [[ ! "${access_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)$ ]]; then
@@ -97,6 +75,28 @@ echo token
 
   local encoded_access_secret="${BASH_REMATCH[2]}"
   if ! set_volatile_key ${auth_secret_keyname} "${encoded_access_secret}"; then
+    return 1
+  fi
+
+  return 0
+}
+
+function retrieve_auth_keys() {
+  local access_token_id=$(keyctl request user ${auth_token_keyname} 2>/dev/null)
+  if [ $? -eq 0 ]; then
+    export access_token=$(keyctl pipe "${access_token_id}")
+  else
+    unset access_token
+    unset access_secret
+    return 1
+  fi
+
+  local access_secret_id=$(keyctl request user ${auth_secret_keyname} 2>/dev/null)
+  if [ $? -eq 0 ]; then
+    export access_secret=$(keyctl pipe "${access_secret_id}")
+  else
+    unset access_token
+    unset access_secret
     return 1
   fi
 

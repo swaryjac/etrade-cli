@@ -91,7 +91,7 @@ authorize_params["oauth_signature"]="${encoded_authorize_oauth_signature}"
 
 access_response=$(http_get "${oauth_access_url}" authorize_params)
 
-if ! set_access_keys "${access_response}"; then
+if ! set_auth_keys "${access_response}"; then
   echo "${access_response}" >> access_response.txt
   echo "response parsing failed, output in access_response.txt"
 fi
