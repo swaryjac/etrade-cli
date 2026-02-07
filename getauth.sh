@@ -66,7 +66,13 @@ fi
 decoded_request_token=$(pctDecode ${encoded_request_token})
 decoded_request_secret=$(pctDecode ${encoded_request_secret})
 
-echo "https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
+authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
+
+if command -v xdg-open &> /dev/null; then
+  xdg-open "${authorize_url}" &
+  echo "If browser page didn't load, go to:"
+fi
+echo "${authorize_url}\n"
 
 read -p "Input verification code: " verification_code
 if [ -z verification_code ]; then
