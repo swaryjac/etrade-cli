@@ -8,7 +8,6 @@ option_url="https://api.etrade.com/v1/market/optionchains.json"
 
 key_file="api_key.txt"
 secret_file="api_secret.txt"
-access_token_file="access_token.txt"
 
 if [ -f ${key_file} ]; then
   key_value=$(cat ${key_file})
@@ -19,19 +18,6 @@ if [ -f ${secret_file} ]; then
   secret_value=$(cat ${secret_file})
 else
   unset secret_value
-fi
-if [ -f ${access_token_file} ]; then
-  access_response=$(cat ${access_token_file})
-  if [[ "${access_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)$ ]]; then
-    encoded_access_token="${BASH_REMATCH[1]}"
-    encoded_access_secret="${BASH_REMATCH[2]}"
-  else
-    unset access_response
-  fi
-fi
-if [ -z access_response ]; then
-  unset encoded_access_token
-  unset encoded_access_secret
 fi
 
 if access_token_id=$(keyctl request user etrade_api_token 2>/dev/null); then
