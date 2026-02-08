@@ -71,7 +71,6 @@ function set_auth_keys() {
   if ! set_volatile_key ${auth_token_keyname} "${encoded_access_token}"; then
     return 1
   fi
-echo token
 
   local encoded_access_secret="${BASH_REMATCH[2]}"
   if ! set_volatile_key ${auth_secret_keyname} "${encoded_access_secret}"; then
@@ -110,7 +109,8 @@ function calculate_hmacsha1_signature() {
   fi
 
   local http_method="$1"
-  local request_url="$2"
+  # signature only uses base url, if url contains parameters, remove them
+  local request_url="${2%\?*}"
   local -n request_param_array="$3"
   local consumer_secret="$4"
   local token_secret="$5"
@@ -159,19 +159,98 @@ function http_get() {
 
   local arg_array=("-G")
 
+  local ordered_keys=($(printf '%s\n' "${!request_param_array[@]}" | sort))
+
   local field_key
 
-  for field_key in "${!request_param_array[@]}"; do
+  for field_key in "${ordered_keys[@]}"; do
     local param_pair="${field_key}=${request_param_array[${field_key}]}"
     arg_array+=("-d")
     arg_array+=("${param_pair}")
   done
+
+  local temp_response_file="/dev/shm/get_response.html"
+  arg_array+=("-o")
   if [ ! -z "${output_file}" ]; then
-    arg_array+=("-o")
     arg_array+=("${output_file}")
+  else
+    arg_array+=("${temp_response_file}")
   fi
+  arg_array+=("-w")
+  arg_array+=("%{http_code}")
   arg_array+=("${request_url}")
 
-  curl "${arg_array[@]}"
+  http_status=$(curl "${arg_array[@]}")
+
+  if [ -z "${output_file}" ]; then
+    cat ${temp_response_file}
+  fi
+  if [[ "${http_status}" == "200" ]]; then
+    return 0
+  fi
+  return 1
 }
 
+function send_etrade_query() {
+  local request_url="$1"
+  local -n query_param_array="$2"
+  local decoded_request_secret="$3"
+  local output_file=""
+  if [[ $# > 3 ]]; then
+    output_file="$4"
+  fi
+
+  local http_method=GET
+
+  local timestamp=$(date +%s)
+  local nonce=$(date +%s%T | openssl base64 | sed -e 's/[+=/]//g')
+
+  query_param_array["oauth_consumer_key"]="${key_value}"
+  query_param_array["oauth_nonce"]="${nonce}"
+  query_param_array["oauth_signature_method"]="HMAC-SHA1"
+  query_param_array["oauth_timestamp"]="${timestamp}"
+
+  local encoded_request_signature=$( \
+    calculate_hmacsha1_signature ${http_method} "${request_url}" query_param_array "${secret_value}" "${decoded_request_secret}" \
+  )
+
+  query_param_array["oauth_signature"]="${encoded_request_signature}"
+
+  # After using for signature calc, remove parameters from the header that appear in the url request
+  local params_in_url=$( \
+    echo ${request_url} | awk '{
+      while(match($0, /[^?&]*=[^&]*/)) {
+        print substr($0, RSTART, RLENGTH)
+        $0 = substr($0, RSTART + RLENGTH)
+      }
+    }' \
+  )
+
+  for param_pair in ${params_in_url}; do
+    if [[ "${param_pair}" =~ (.*)=(.*) ]]; then
+      unset "query_param_array["${BASH_REMATCH[1]}"]"
+    fi
+  done
+
+  http_get "${request_url}" query_param_array "${output_file}"
+}
+
+function renew_auth_token() {
+  if ! retrieve_auth_keys; then
+    return 1
+  fi
+
+  local encoded_access_token="${access_token}"
+  local encoded_access_secret="${access_secret}"
+
+  local decoded_access_secret=$(pctDecode ${encoded_access_secret})
+
+  declare -A authorize_params
+  authorize_params["oauth_token"]="${encoded_access_token}"
+
+  local renew_response=$( \
+    send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" \
+  )
+
+  echo ${renew_response} > renew_response.txt
+}
