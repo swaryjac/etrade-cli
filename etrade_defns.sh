@@ -88,7 +88,9 @@ function set_auth_keys() {
 }
 
 function retrieve_auth_keys() {
-  local access_token_id=$(keyctl request user ${auth_token_keyname} 2>/dev/null)
+  # separate declaration and assignment so local doesn't set last return value
+  local access_token_id
+  access_token_id=$(keyctl request user ${auth_token_keyname} 2>/dev/null)
   if [ $? -eq 0 ]; then
     export access_token=$(keyctl pipe "${access_token_id}")
   else
@@ -97,7 +99,8 @@ function retrieve_auth_keys() {
     return 1
   fi
 
-  local access_secret_id=$(keyctl request user ${auth_secret_keyname} 2>/dev/null)
+  local access_secret_id
+  access_secret_id=$(keyctl request user ${auth_secret_keyname} 2>/dev/null)
   if [ $? -eq 0 ]; then
     export access_secret=$(keyctl pipe "${access_secret_id}")
   else

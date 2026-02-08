@@ -41,6 +41,8 @@ if [ ! -d "${output_dir}" ]; then
   mkdir -p "${output_dir}"
 fi
 
+./getauth.sh
+
 for symbol in ${all_symbols}; do
   symbol=$(echo $symbol | sed 's/"//g');
 
