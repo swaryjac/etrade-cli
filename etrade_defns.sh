@@ -271,7 +271,7 @@ function is_authorization_valid() {
   local quote_response="$( \
     send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
   )"
-  if [[ $? == 0 ]] && echo "${quote_response}" | jq -e 'has("QuoteResponse")' ; then
+  if [[ $? == 0 ]] && echo "${quote_response}" | jq -e 'has("QuoteResponse")' &> /dev/null ; then
     return 0
   elif [[ "${quote_response}" == *"token_rejected"* ]]; then
     return 10
