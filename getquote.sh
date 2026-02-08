@@ -72,6 +72,12 @@ if [[ "${quote_text}" =~ lastTrade\":([0-9]*\.[0-9]*), ]]; then
   quote_price="${BASH_REMATCH[1]}"
 else
   echo "failed retrieving price"
+  if [[ "${quote_text}" == *"token_rejected"* ]] && renew_auth_token; then
+    echo "renewed authorization token"
+  elif [[ "${quote_text}" == *"token_expired"* ]]; then
+    clear_auth_keys
+    echo "cleared authorization token"
+  fi
   exit 1
 fi
 

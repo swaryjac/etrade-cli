@@ -25,6 +25,9 @@ if retrieve_auth_keys; then
     authorization_result=$?
     if [[ ${authorization_result} == 10 ]] && renew_auth_token; then
       echo "renewed authorization"
+      exit 0
+    else
+      clear_auth_keys
     fi
   fi
 fi

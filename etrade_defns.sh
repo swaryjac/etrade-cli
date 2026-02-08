@@ -87,6 +87,10 @@ function set_auth_keys() {
   return 0
 }
 
+function clear_auth_keys() {
+  keyctl clear %:${keyring_name}
+}
+
 function retrieve_auth_keys() {
   # separate declaration and assignment so local doesn't set last return value
   local access_token_id
@@ -213,7 +217,7 @@ function send_etrade_query() {
   local http_method=GET
 
   local timestamp=$(date +%s)
-  local nonce=$(date +%s%T | openssl base64 | sed -e 's/[+=/]//g')
+  local nonce=$(date +%s%N | openssl base64 | sed -e 's/[+=/]//g')
 
   query_param_array["oauth_consumer_key"]="${key_value}"
   query_param_array["oauth_nonce"]="${nonce}"
