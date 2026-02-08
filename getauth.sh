@@ -44,8 +44,8 @@ else
   exit 1
 fi
 
-decoded_request_token=$(pctDecode ${encoded_request_token})
-decoded_request_secret=$(pctDecode ${encoded_request_secret})
+decoded_request_token=$(pct_decode ${encoded_request_token})
+decoded_request_secret=$(pct_decode ${encoded_request_secret})
 
 authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
 

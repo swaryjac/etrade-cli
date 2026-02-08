@@ -37,7 +37,7 @@ if [[ -z "${encoded_access_token}" || -z "${encoded_access_secret}" ]]; then
   echo "access parsing failed"
   exit 1
 fi
-decoded_access_secret=$(pctDecode ${encoded_access_secret})
+decoded_access_secret=$(pct_decode ${encoded_access_secret})
 
 quote_symbol=$1
 if [ -z ${quote_symbol} ]; then

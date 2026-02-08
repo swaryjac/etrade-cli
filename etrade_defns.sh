@@ -21,7 +21,7 @@ else
   unset secret_value
 fi
 
-function pctEncode() {
+function pct_encode() {
   local length="${#1}"
   for ((n = 0; n < length; n++)); do
     local c="${1:n:1}"
@@ -32,7 +32,7 @@ function pctEncode() {
   done
 }
 
-function pctDecode() {
+function pct_decode() {
   local strg="${*}"
   printf '%s' "${strg%%[%+]*}"
   local j="${strg#"${strg%%[%+]*}"}"
@@ -43,7 +43,7 @@ function pctDecode() {
     ;; "+"* ) printf ' '
     ;;    * ) return
   esac
-  if [ -n "${strg}" ] ; then pctDecode "${strg}"; fi
+  if [ -n "${strg}" ] ; then pct_decode "${strg}"; fi
 }
 
 auth_token_keyname="etrade_api_token"
@@ -132,19 +132,19 @@ function calculate_hmacsha1_signature() {
     all_param_string="${all_param_string}${param_pair}"
   done
 
-  local encoded_param_string=$(pctEncode ${all_param_string})
-  local encoded_request_url=$(pctEncode ${request_url})
+  local encoded_param_string=$(pct_encode ${all_param_string})
+  local encoded_request_url=$(pct_encode ${request_url})
 
   local signature_base_string="${http_method}&${encoded_request_url}&${encoded_param_string}"
 
-  local consumer_secret=$(pctEncode ${consumer_secret})
-  local token_secret=$(pctEncode ${token_secret})
+  local consumer_secret=$(pct_encode ${consumer_secret})
+  local token_secret=$(pct_encode ${token_secret})
   local combined_secret="${consumer_secret}&${token_secret}"
 
   local calculated_signature=$( \
     echo -n "$signature_base_string" | openssl dgst -sha1 -hmac "${combined_secret}" -binary | base64 \
   )
-  local encoded_signature=$(pctEncode ${calculated_signature})
+  local encoded_signature=$(pct_encode ${calculated_signature})
 
   echo $encoded_signature
 }
@@ -244,7 +244,7 @@ function is_authorization_valid() {
   local encoded_access_token="${access_token}"
   local encoded_access_secret="${access_secret}"
 
-  local decoded_access_secret=$(pctDecode ${encoded_access_secret})
+  local decoded_access_secret=$(pct_decode ${encoded_access_secret})
 
   quote_url="${quote_url_base}AA.json"
 
@@ -274,7 +274,7 @@ function renew_auth_token() {
   local encoded_access_token="${access_token}"
   local encoded_access_secret="${access_secret}"
 
-  local decoded_access_secret=$(pctDecode ${encoded_access_secret})
+  local decoded_access_secret=$(pct_decode ${encoded_access_secret})
 
   declare -A authorize_params
   authorize_params["oauth_token"]="${encoded_access_token}"
