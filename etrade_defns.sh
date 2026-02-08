@@ -2,6 +2,7 @@
 
 oauth_request_url="https://api.etrade.com/oauth/request_token"
 oauth_access_url="https://api.etrade.com/oauth/access_token"
+oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
 
 quote_url_base="https://api.etrade.com/v1/market/quote/"
 option_url="https://api.etrade.com/v1/market/optionchains.json"
@@ -233,6 +234,36 @@ function send_etrade_query() {
   done
 
   http_get "${request_url}" query_param_array "${output_file}"
+}
+
+function is_authorization_valid() {
+  if ! retrieve_auth_keys; then
+    return 1
+  fi
+
+  local encoded_access_token="${access_token}"
+  local encoded_access_secret="${access_secret}"
+
+  local decoded_access_secret=$(pctDecode ${encoded_access_secret})
+
+  quote_url="${quote_url_base}AA.json"
+
+  detail_flag=FUNDAMENTAL
+
+  declare -A quote_params
+
+  quote_params["detailFlag"]="${detail_flag}"
+  quote_params["oauth_token"]="${encoded_access_token}"
+
+  local quote_response="$( \
+    send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
+  )"
+  if [[ $? == 0 ]] && echo "${quote_response}" | jq -e 'has("QuoteResponse")' ; then
+    return 0
+  elif [[ "${quote_response}" == *"token_rejected"* ]]; then
+    return 10
+  fi
+  return 1
 }
 
 function renew_auth_token() {

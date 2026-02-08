@@ -17,6 +17,18 @@ if [ -z ${secret_value} ]; then
   exit 1
 fi
 
+if retrieve_auth_keys; then
+  if is_authorization_valid; then
+    echo "authorization already good"
+    exit 0
+  else
+    authorization_result = $?
+    if [[ ${authorization_result} == 10 ]] && renew_auth_token; then
+      echo "renewed authorization"
+    fi
+  fi
+fi
+
 declare -A request_params
 
 request_params["oauth_callback"]="oob"
@@ -37,11 +49,14 @@ decoded_request_secret=$(pctDecode ${encoded_request_secret})
 
 authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
 
+echo ""
+echo "************************************"
 if command -v xdg-open &> /dev/null; then
   xdg-open "${authorize_url}" &> /dev/null &
   echo "If browser page didn't load, go to:"
 fi
 echo "${authorize_url}"
+echo "************************************"
 echo ""
 
 read -p "Input verification code: " verification_code
