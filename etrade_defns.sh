@@ -7,6 +7,8 @@ oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
 quote_url_base="https://api.etrade.com/v1/market/quote/"
 option_url="https://api.etrade.com/v1/market/optionchains.json"
 
+keyring_name="etrade_keyring"
+
 key_file="api_key.txt"
 secret_file="api_secret.txt"
 
@@ -19,6 +21,10 @@ if [ -f ${secret_file} ]; then
   secret_value=$(cat ${secret_file})
 else
   unset secret_value
+fi
+
+if ! keyctl list %:${keyring_name} &> /dev/null; then
+  keyctl newring ${keyring_name} @u &> /dev/null
 fi
 
 function pct_encode() {
@@ -53,7 +59,7 @@ function set_volatile_key() {
   local key_name="$1"
   local key_value="$2"
   echo $key_name $key_value
-  if ! keyctl add user "${key_name}" "${key_value}" @u &> /dev/null; then
+  if ! keyctl add user "${key_name}" "${key_value}" %:${keyring_name} &> /dev/null; then
     local key_id
     if key_id=$(keyctl request user "${key_name}" 2&>1); then
       keyctl update "${key_id}" "${key_value}" &> /dev/null
