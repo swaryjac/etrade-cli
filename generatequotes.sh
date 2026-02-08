@@ -15,7 +15,8 @@ symbol_csv_file="weekly_equities${date_string}.csv"
 if [ ! -f $all_weekly_file ]; then
   weekly_csv_url="https://www.cboe.com/available_weeklys/get_csv_download/"
 
-  http_get ${weekly_csv_url} "" ${all_weekly_file}
+  declare -A empty_array=()
+  http_get ${weekly_csv_url} empty_array ${all_weekly_file}
 fi
 
 equities_header_regex="^Available.*Equity$"
