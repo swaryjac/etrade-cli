@@ -22,7 +22,7 @@ if retrieve_auth_keys; then
     echo "authorization already good"
     exit 0
   else
-    authorization_result = $?
+    authorization_result=$?
     if [[ ${authorization_result} == 10 ]] && renew_auth_token; then
       echo "renewed authorization"
     fi

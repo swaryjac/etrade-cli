@@ -283,5 +283,8 @@ function renew_auth_token() {
     send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" \
   )
 
-  echo ${renew_response} > renew_response.txt
+  if [[ $? == 0 && "${renew_response}" == *"renewed"* ]]; then
+    return 0
+  fi
+  return 1
 }
