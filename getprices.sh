@@ -3,7 +3,7 @@
 symbol_csv_file="$1"
 
 if [ ! -f $symbol_csv_file ]; then
-  echo "file doesn't exist: $symbol_csv_file"
+  echo "file doesn't exist: $symbol_csv_file" >$2
   exit 1
 fi
 
@@ -18,7 +18,7 @@ for symbol in ${all_symbols}; do
   symbol=$(echo $symbol | sed 's/"//g');
   expected_file="quotes/${symbol}.json"
   if [ ! -f ${expected_file} ]; then
-    echo "${expected_file} not found"
+    echo "${expected_file} not found" >$2
     continue;
   fi
 
@@ -26,9 +26,9 @@ for symbol in ${all_symbols}; do
   if [[ ${quote_price} =~ ^[0-9]*\.?[0-9]+$ ]]; then
     echo "$quote_price $symbol" >> $output_price_file
   else
-    echo "couldn't find $symbol price"
+    echo "couldn't find $symbol price" >$2
   fi
-  
+
 done
 
 sorted_output_file=sortedprices.txt
