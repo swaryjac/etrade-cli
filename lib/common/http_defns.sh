@@ -1,8 +1,5 @@
 #!/bin/bash
 
-quote_url_base="https://api.etrade.com/v1/market/quote/"
-option_url="https://api.etrade.com/v1/market/optionchains.json"
-
 function pct_encode() {
   local is_debug_on=false
   if [[ "$-" == *x* ]]; then
@@ -68,10 +65,11 @@ function calculate_hmacsha1_signature() {
   local all_param_string=""
 
   for field_key in "${ordered_keys[@]}"; do
-    if ! $first_loop ; then
+    if $first_loop ; then
+      first_loop=false
+    else
       all_param_string="${all_param_string}&"
     fi
-    first_loop=false
 
     local param_pair="${field_key}=${request_param_array[${field_key}]}"
     all_param_string="${all_param_string}${param_pair}"

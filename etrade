@@ -10,9 +10,6 @@ if [ -f "$PERSISTENT_VALUE_FILE" ]; then
   source "$PERSISTENT_VALUE_FILE"
 fi
 
-echo "timestamp: ${time_last_auth}"
-date -d "@${time_last_auth}"
-
 source "$PARENT_PATH/lib/common/http_defns.sh"
 source "$PARENT_PATH/lib/auth/auth.sh"
 source "$PARENT_PATH/lib/quote/quote.sh"
