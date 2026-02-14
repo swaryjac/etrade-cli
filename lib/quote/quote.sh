@@ -47,7 +47,7 @@ function get_quote() {
     send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
   )
 
-  if ! jq -e 'has("QuoteResponse")' <<< "${quote_text}"; then
+  if ! jq -e 'has("QuoteResponse")' > /dev/null <<< "${quote_text}"; then
     echo "Failed retrieving price: ${quote_symbol}"
     exit 1
   fi
@@ -87,6 +87,7 @@ function get_quote_option() {
       -n|--number-strikes)
         local opt_no_strikes="$2"
         shift 2
+        ;;
       --)
         shift
         break
