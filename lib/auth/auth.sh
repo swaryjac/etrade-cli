@@ -160,7 +160,7 @@ function is_authorization_valid() {
 }
 
 function renew_auth_token() {
-  if ! retrieve_auth_keys; then
+  if ! get_permanent_api_key || ! retrieve_auth_keys; then
     return 1
   fi
 
@@ -283,6 +283,7 @@ function execute_auth() {
         echo "Renewal failed!"
         return 1
       fi
+      echo "Authorization renewed at $(date -d @${time_last_auth})"
       return 0
       ;;
     get)
