@@ -210,6 +210,107 @@ function get_quote_option() {
   fi
 }
 
+function get_weekly_options_equity() {
+  local readonly date_string=$(date +"%Y"-"%m"-"%d")
+  local readonly all_weekly_file="/dev/shm/.weekly${date_string}.csv"
+
+  if [ ! -f $all_weekly_file ]; then
+    local readonly weekly_csv_url="https://www.cboe.com/available_weeklys/get_csv_download/"
+    declare -A empty_array=()
+    if ! http_get ${weekly_csv_url} empty_array ${all_weekly_file}; then
+      echo "Error getting weekly options from ${weekly_csv_url}"
+      return 1
+    fi
+  fi
+
+  local readonly equities_header_regex="^Available.*Equity$"
+  sed -n '/'"${equities_header_regex}"'/,$p' ${all_weekly_file} \
+    | sed '1d' \
+    | awk -F , '{print $1}' \
+    | sed 's/"//g'
+}
+
+function get_quote_batch() {
+  OPTS=$(getopt -o oWf: --long options,weekly,file: -- "$@")
+  if [[ $? != 0 ]]; then
+    echo "Bad options"
+    return 1
+  fi
+  eval set -- "$OPTS"
+  local get_option_quotes=false
+  local get_for_weekly_equities=false
+  while true; do
+    case "$1" in
+      -o|--options)
+        get_option_quotes=true
+        shift
+        ;;
+      -W|--weekly)
+        get_for_weekly_equities=true
+        shift
+        ;;
+      -f|--file)
+        local input_file="$2"
+        shift 2
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        echo "Option Parsing Error"
+        return 1
+        ;;
+    esac
+  done
+
+  if $get_for_weekly_equities; then
+    local all_symbols=$(get_weekly_options_equity)
+  elif [ -n "${input_file}" ]; then
+    if [ ! -f "${input_file}" ]; then
+      echo "Error ${input_file} not found"
+      return 1
+    fi
+    local all_symbols=$(cat "${input_file}")
+  else
+    local all_symbols=""
+    while IFS= read -r line; do
+      all_symbols="$all_symbols $line"
+    done
+  fi
+  all_symbols=$(echo "${all_symbols}" | sed 's/[,;]/ /g')
+
+  for symbol in ${all_symbols}; do
+    if ! is_symbol_valid "${symbol}"; then
+      echo "Illegal symbol: ${symbol}"
+      continue
+    fi
+
+    local readonly num_attempts=3
+    for i in $(seq 1 ${num_attempts}); do
+      if ! get_quote -w ${symbol}; then
+        echo "Attempt $i Quote for '${symbol}' failed"
+      else
+        break;
+      fi
+    done
+
+    if $get_option_quotes; then
+      if ! stock_price=$(get_quote_price -f ${symbol}); then
+        echo "Failed getting price: ${symbol}"
+        continue
+      fi
+      for i in $(seq 1 ${num_attempts}); do
+        if ! get_quote_option -w -s "${stock_price}" ${symbol}; then
+          echo "Attempt $i Option for '${symbol}' failed"
+        else
+          break;
+        fi
+      done
+    fi
+  done
+}
+
 function execute_quote() {
   subcommand=$1
   case "$subcommand" in
@@ -220,6 +321,10 @@ function execute_quote() {
     option)
       shift
       get_quote_option "$@"
+      ;;
+    batch)
+      shift
+      get_quote_batch "$@"
       ;;
     *)
       get_quote "$@"

@@ -41,7 +41,7 @@ for symbol in ${all_symbols}; do
 
   num_attempts=3
   for i in $(seq 1 ${num_attempts}); do
-    if ! quote_text=$(./etrade quote -w ${symbol}); then
+    if ! ./etrade quote -w ${symbol}; then
       echo "Quote for '${symbol}' failed"
     else
       break;
@@ -54,7 +54,7 @@ for symbol in ${all_symbols}; do
   fi
 
   for i in $(seq 1 ${num_attempts}); do
-    if ! option_text=$(./etrade quote option -w ${symbol}); then
+    if ! ./etrade quote option -w ${symbol}; then
       echo "Option for '${symbol}' failed"
     else
       break;
