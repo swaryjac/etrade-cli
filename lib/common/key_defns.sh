@@ -35,3 +35,66 @@ function clear_volatile_keyring() {
 
   keyctl clear %:${keyring}
 }
+
+function set_permanent_key() {
+  if [[ $# < 3 ]]; then
+    echo "Failed call to set permanent key, needs at least 3 arguments, got $#" 1>&2
+    return 1
+  fi
+  local key_label="$1"
+  declare -a secret_tool_params
+  secret_tool_params+=("--label='$key_label'")
+  shift
+
+  secret_tool_params+=("user")
+  secret_tool_params+=("$(whoami)")
+
+  while [ $# -ge 2 ]; do
+    secret_tool_params+=("$1")
+    secret_tool_params+=("$2")
+    shift 2
+  done
+
+  echo "Enter key for $key_label:" > /dev/tty
+  secret-tool store "${secret_tool_params[@]}"
+}
+
+function get_permanent_key() {
+  if [[ $# < 2 ]]; then
+    echo "Failed call to set permanent key, needs at least 2 arguments, got $#" 1>&2
+    return 1
+  fi
+
+  declare -a secret_tool_params
+
+  secret_tool_params+=("user")
+  secret_tool_params+=("$(whoami)")
+
+  while [ $# -ge 2 ]; do
+    secret_tool_params+=("$1")
+    secret_tool_params+=("$2")
+    shift 2
+  done
+
+  secret-tool lookup "${secret_tool_params[@]}"
+}
+
+function clear_permanent_key() {
+  if [[ $# < 2 ]]; then
+    echo "Failed call to clear permanent key, needs at least 2 arguments, got $#" 1>&2
+    return 1
+  fi
+
+  declare -a secret_tool_params
+
+  secret_tool_params+=("user")
+  secret_tool_params+=("$(whoami)")
+
+  while [ $# -ge 2 ]; do
+    secret_tool_params+=("$1")
+    secret_tool_params+=("$2")
+    shift 2
+  done
+
+  secret-tool clear "${secret_tool_params[@]}"
+}

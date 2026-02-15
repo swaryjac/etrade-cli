@@ -4,10 +4,68 @@ oauth_request_url="https://api.etrade.com/oauth/request_token"
 oauth_access_url="https://api.etrade.com/oauth/access_token"
 oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
 
+permanent_key_attr_name="etrade_api_account"
+permanent_key_attr_value="etrade_api_account_key"
+permanent_key_label="Etrade Account Key"
+permanent_secret_attr_value="etrade_api_account_secret"
+permanent_secret_label="Etrade Account Secret"
+
 keyring_name="etrade_keyring"
 
 auth_token_keyname="etrade_api_token"
 auth_secret_keyname="etrade_api_secret"
+
+function save_account_api_keys() {
+  if load_permanent_api_key; then
+    echo "This will remove previously saved key/secret, enter 'y' to proceed" > /dev/tty
+    IFS= read -r user_confirmation
+    if [[ "${user_confirmation}" != y* ]]; then
+      echo "Exiting setup" > /dev/tty
+      return 1
+    fi
+  fi
+
+  declare -a key_attributes
+  key_attributes+=("${permanent_key_attr_name}")
+  key_attributes+=("${permanent_key_attr_value}")
+
+  declare -a secret_attributes
+  secret_attributes+=("${permanent_key_attr_name}")
+  secret_attributes+=("${permanent_secret_attr_value}")
+
+  set_permanent_key "${permanent_key_label}" "${key_attributes[@]}"
+
+  if [ -z $(get_permanent_key "${key_attributes[@]}") ]; then
+    echo "Empty key entered, nothing saved"
+    clear_permanent_key "${key_attributes[@]}"
+    clear_permanent_key "${secret_attributes[@]}"
+    return 1
+  fi
+
+  set_permanent_key "${permanent_secret_label}" "${secret_attributes[@]}"
+
+  if [ -z $(get_permanent_key "${secret_attributes[@]}") ]; then
+    echo "Empty secret entered, nothing saved"
+    clear_permanent_key "${key_attributes[@]}"
+    clear_permanent_key "${secret_attributes[@]}"
+    return 1
+  fi
+  return 0
+}
+
+function load_permanent_api_key() {
+  local retrieved_key retrieved_secret
+
+  if retrieved_key=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_key_attr_value}") && \
+     retrieved_secret=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_secret_attr_value}"); then
+     export key_value="${retrieved_key}"
+     export secret_value="${retrieved_secret}"
+     return 0
+  fi
+  unset key_value
+  unset secret_value
+  return 1
+}
 
 function authorized_in_last_hour() {
   if [ -n "${time_last_auth}" ] && is_num "${time_last_auth}"; then
@@ -18,27 +76,6 @@ function authorized_in_last_hour() {
     fi
   fi
   return 1
-}
-
-function get_permanent_api_key() {
-  key_file="api_key.txt"
-  secret_file="api_secret.txt"
-
-  if [ -f ${key_file} ]; then
-    export key_value=$(cat ${key_file})
-  else
-    unset key_value
-  fi
-  if [ -f ${secret_file} ]; then
-    export secret_value=$(cat ${secret_file})
-  else
-    unset secret_value
-  fi
-
-  if [[ -z ${key_value} || -z ${secret_value} ]]; then
-    return 1
-  fi
-  return 0
 }
 
 function set_auth_keys() {
@@ -77,7 +114,11 @@ function retrieve_auth_keys() {
 }
 
 function is_authorization_valid() {
-  if ! get_permanent_api_key || ! retrieve_auth_keys; then
+  if ! load_permanent_api_key; then
+    echo "Error, need permanent api key"
+    return 1
+  fi
+  if ! retrieve_auth_keys; then
     return 1
   fi
 
@@ -109,7 +150,12 @@ function is_authorization_valid() {
 }
 
 function renew_auth_token() {
-  if ! get_permanent_api_key || ! retrieve_auth_keys; then
+  if ! load_permanent_api_key; then
+    echo "Error, need permanent api key"
+    return 1
+  fi
+  if ! retrieve_auth_keys; then
+    echo "Error, no keys found to renw"
     return 1
   fi
 
@@ -133,7 +179,7 @@ function renew_auth_token() {
 }
 
 function get_new_authorization() {
-  if ! get_permanent_api_key; then
+  if ! load_permanent_api_key; then
     echo "Error, need permanent api key"
     return 1
   fi
@@ -199,7 +245,7 @@ function get_new_authorization() {
 }
 
 function has_or_get_authorization() {
-  if ! get_permanent_api_key; then
+  if ! load_permanent_api_key; then
     echo "Error, need permanent api key"
     return 1
   elif { authorized_in_last_hour && retrieve_auth_keys; } || \
@@ -213,8 +259,9 @@ function has_or_get_authorization() {
 function execute_auth() {
   subcommand=$1
   case "$subcommand" in
-    # setup)
-    #   ;;
+    setup)
+      save_account_api_keys
+      ;;
     check)
       if is_authorization_valid; then
         echo "Currently Authorized"

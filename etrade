@@ -11,8 +11,6 @@ source "$PARENT_PATH/lib/auth/auth.sh"
 source "$PARENT_PATH/lib/quote/quote.sh"
 source "$PARENT_PATH/lib/calc/calc.sh"
 
-set -x
-
 load_persistent_values
 
 if [ ! -d "${QUOTE_DIR}" ]; then
