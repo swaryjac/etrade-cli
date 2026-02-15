@@ -1,12 +1,11 @@
 #!/bin/bash
 
-
-#!/bin/bash
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
 
 source "$PARENT_PATH/lib/common/http_defns.sh"
 source "$PARENT_PATH/lib/auth/auth.sh"
 source "$PARENT_PATH/lib/quote/quote.sh"
+source "$PARENT_PATH/lib/calc/calc.sh"
 
 export PERSISTENT_VALUE_FILE="/dev/shm/.etrade_vars"
 
@@ -27,6 +26,10 @@ case $1 in
   quote)
     shift
     execute_quote $@
+    ;;
+  calc)
+    shift
+    execute_calc $@
     ;;
   *)
     echo "Error"

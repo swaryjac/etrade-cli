@@ -210,7 +210,7 @@ function get_quote_option() {
   fi
 }
 
-function get_weekly_options_equity() {
+function get_weekly_options_equity_symbols() {
   local readonly date_string=$(date +"%Y"-"%m"-"%d")
   local readonly all_weekly_file="/dev/shm/.weekly${date_string}.csv"
 
@@ -228,6 +228,30 @@ function get_weekly_options_equity() {
     | sed '1d' \
     | awk -F , '{print $1}' \
     | sed 's/"//g'
+}
+
+function get_all_symbols_from_file() {
+  local input_file="$1"
+
+  if [ ! -f "${input_file}" ]; then
+    echo "Error ${input_file} not found" >&2
+    return 1
+  fi
+  local all_symbols=$(cat "${input_file}")
+  echo "${all_symbols}" | sed 's/[,;]/ /g'
+  return 0
+}
+
+function get_all_symbols_from_stdin() {
+  if [[ -t 0 ]]; then
+    echo "Enter stock symbols, separated by ',' ';' ' ' or newlines. Ctrl+d to complete:" > /dev/tty
+  fi
+  local all_symbols=""
+  while IFS= read -r line; do
+    all_symbols="$all_symbols $line"
+  done
+  echo "${all_symbols}" | sed 's/[,;]/ /g'
+  return 0
 }
 
 function get_quote_batch() {
@@ -265,18 +289,11 @@ function get_quote_batch() {
   done
 
   if $get_for_weekly_equities; then
-    local all_symbols=$(get_weekly_options_equity)
+    local all_symbols=$(get_weekly_options_equity_symbols)
   elif [ -n "${input_file}" ]; then
-    if [ ! -f "${input_file}" ]; then
-      echo "Error ${input_file} not found"
-      return 1
-    fi
-    local all_symbols=$(cat "${input_file}")
+    local all_symbols=$(get_all_symbols_from_file "${input_file}")
   else
-    local all_symbols=""
-    while IFS= read -r line; do
-      all_symbols="$all_symbols $line"
-    done
+    local all_symbols=$(get_all_symbols_from_stdin)
   fi
   all_symbols=$(echo "${all_symbols}" | sed 's/[,;]/ /g')
 

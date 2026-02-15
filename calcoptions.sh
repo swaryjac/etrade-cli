@@ -56,10 +56,10 @@ for quote_line in $all_symbols; do
 
   one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
 
-  put_price=$(jq '.OptionChainResponse.OptionPair.[0].Put.bid' ${option_file})
-  strike_price=$(jq '.OptionChainResponse.OptionPair.[0].Put.strikePrice' ${option_file})
+  for i in {0..5}; do
+    put_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.bid' ${option_file})
+    strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.strikePrice' ${option_file})
 
-  for i in {1..5}; do
     if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ]; then
       break;
     fi
@@ -72,8 +72,5 @@ for quote_line in $all_symbols; do
       echo "${quote_symbol},${stock_price},${strike_price},${put_price},${put_pct},${price_spread}" >> $output_csv_file
       break;
     fi
-
-    put_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.bid' ${option_file})
-    strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.strikePrice' ${option_file})
   done
 done
