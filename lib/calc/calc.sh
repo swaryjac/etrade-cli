@@ -1,29 +1,5 @@
 #!/bin/bash
 
-function get_all_saved_option_file_symbols() {
-  local path_name
-  for path_name in ${QUOTE_DIR}/*_opt.json; do
-    local file_name_only="${path_name##*/}"
-    echo "${file_name_only%_opt.json}"
-  done
-}
-
-function quote_file_exists() {
-  local symbol=$1
-  if [ -f "${QUOTE_DIR}/${symbol}.json" ]; then
-    return 0
-  fi
-  return 1
-}
-
-function option_file_exists() {
-  local symbol=$1
-  if [ -f "${QUOTE_DIR}/${symbol}_opt.json" ]; then
-    return 0
-  fi
-  return 1
-}
-
 function calc_available_puts() {
   OPTS=$(getopt -o m:M:d:Wf: --long min_strike:,max_strike:,spread:,weekly,file: -- "$@")
   if [[ $? != 0 ]]; then
@@ -134,7 +110,7 @@ function calc_available_puts() {
 
       if [ $(echo "$put_price >= $one_pct_price" | bc -l) -eq 1 ]; then
         local put_pct="$(echo "scale=3; $put_price / $stock_price" | bc)"
-        echo good: "$put_price $strike_price $put_pct"
+        echo "$quote_symbol: $strike_price $put_price $put_pct $price_spread"
         echo "${quote_symbol},${stock_price},${strike_price},${put_price},${put_pct},${price_spread}" >> $output_csv_file
         break;
       fi

@@ -3,7 +3,7 @@
 quote_url_base="https://api.etrade.com/v1/market/quote/"
 option_url="https://api.etrade.com/v1/market/optionchains.json"
 
-function set_secret_values() {
+function import_secret_variables() {
   if ! has_or_get_authorization > /dev/null; then
     echo "Error: No Authorization available"
     return 1
@@ -14,13 +14,6 @@ function set_secret_values() {
   fi
   export decoded_access_secret=$(pct_decode ${access_secret})
   return 0
-}
-
-function is_symbol_valid() {
-  if [ -n $1 ] && [[ "$1" =~ [A-Z]{1,5} ]]; then
-    return 0
-  fi
-  return 1
 }
 
 function get_quote() {
@@ -55,7 +48,7 @@ function get_quote() {
 
   local quote_symbol=$1
   shift
-  if ! is_symbol_valid "$quote_symbol" ; then
+  if ! is_ticker_symbol_valid "$quote_symbol" ; then
     echo "Quote symbol invalid: ${quote_symbol}"
     return 1
   fi
@@ -63,15 +56,15 @@ function get_quote() {
     write_to_file=false
   fi
 
-  local quote_file="${QUOTE_DIR}/${quote_symbol}.json"
+  local quote_file=$(get_quote_filename "${quote_symbol}")
   if $read_from_file; then
-    if [ ! -f "${quote_file}" ]; then
+    if quote_file_exists "${quote_symbol}"; then
       echo "Couldn't find quote file: ${quote_file}"
       return 1
     fi
     local quote_text=$(cat "${quote_file}")
   else
-    if ! set_secret_values; then
+    if ! import_secret_variables; then
       return 1
     fi
 
@@ -152,7 +145,7 @@ function get_quote_option() {
 
   local quote_symbol=$1
   shift
-  if ! is_symbol_valid "$quote_symbol" ; then
+  if ! is_ticker_symbol_valid "$quote_symbol" ; then
     echo "Quote symbol invalid: ${quote_symbol}"
     return 1
   fi
@@ -169,16 +162,16 @@ function get_quote_option() {
     return 1
   fi
 
-  local option_file="${QUOTE_DIR}/${quote_symbol}_opt.json"
+  local option_file=$(get_option_filename "${quote_symbol}")
   if $read_from_file; then
-    if [ ! -f "${option_file}" ]; then
-      echo "Couldn't find quote file: ${quote_file}"
+    if option_file_exists "${quote_symbol}"; then
+      echo "Couldn't find option file: ${option_file}"
       return 1
     fi
     local option_text=$(cat "${option_file}")
   else
 
-    if ! set_secret_values; then
+    if ! import_secret_variables; then
       return 1
     fi
 
@@ -298,7 +291,7 @@ function get_quote_batch() {
   all_symbols=$(echo "${all_symbols}" | sed 's/[,;]/ /g')
 
   for symbol in ${all_symbols}; do
-    if ! is_symbol_valid "${symbol}"; then
+    if ! is_ticker_symbol_valid "${symbol}"; then
       echo "Illegal symbol: ${symbol}"
       continue
     fi
@@ -342,6 +335,12 @@ function execute_quote() {
     batch)
       shift
       get_quote_batch "$@"
+      ;;
+    clean)
+      shift
+      if [ -d "${QUOTE_DIR}" ]; then
+        find "${QUOTE_DIR}" -name "*.json" -delete
+      fi
       ;;
     *)
       get_quote "$@"

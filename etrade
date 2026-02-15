@@ -2,21 +2,21 @@
 
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
 
+source "$PARENT_PATH/lib/common/file_defns.sh"
 source "$PARENT_PATH/lib/common/http_defns.sh"
+source "$PARENT_PATH/lib/common/key_defns.sh"
+source "$PARENT_PATH/lib/common/validation.sh"
 source "$PARENT_PATH/lib/auth/auth.sh"
 source "$PARENT_PATH/lib/quote/quote.sh"
 source "$PARENT_PATH/lib/calc/calc.sh"
 
-export PERSISTENT_VALUE_FILE="/dev/shm/.etrade_vars"
+set -x
 
-if [ -f "$PERSISTENT_VALUE_FILE" ]; then
-  source "$PERSISTENT_VALUE_FILE"
-fi
-if [ -z "${QUOTE_DIR}" ]; then
-  set_persistent_value "QUOTE_DIR" "quotes"
-fi
+load_persistent_values
 
-# set -x
+if [ ! -d "${QUOTE_DIR}" ]; then
+  mkdir -p "${QUOTE_DIR}"
+fi
 
 case $1 in
   auth)
