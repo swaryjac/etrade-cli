@@ -1,6 +1,6 @@
 #!/bin/bash
 
-definitions_file=etrade_defns.sh
+definitions_file=lib/common/http_defns.sh
 if [ ! -f ${definitions_file} ]; then
   echo "Can't source ${definitions_file}"
   exit 1
@@ -29,44 +29,37 @@ fi
 
 all_symbols=$(cat ${symbol_csv_file} | awk -F , '{print $1}')
 
-quote_script="./getquote.sh"
-
-if [ ! -f ${quote_script} ]; then
-  echo "${quote_script} not found"
-  exit 1
-fi
-
 output_dir=quotes
 
 if [ ! -d "${output_dir}" ]; then
   mkdir -p "${output_dir}"
 fi
 
-./getauth.sh
 
 for symbol in ${all_symbols}; do
   symbol=$(echo $symbol | sed 's/"//g');
 
   num_attempts=3
   for i in $(seq 1 ${num_attempts}); do
-    if ! ${quote_script} ${symbol} ; then
-      echo "'${quote_script} ${symbol}' failed"
+    if ! quote_text=$(./etrade quote -w ${symbol}); then
+      echo "Quote for '${symbol}' failed"
     else
       break;
     fi
   done
 
+  if ! stock_price=$(./etrade quote price -f ${symbol}); then
+    echo "Failed reading price: ${symbol}"
+    continue
+  fi
 
-  expected_opt_file="${output_dir}/${symbol}_opt.json"
-  expected_file="${output_dir}/${symbol}.json"
-  if [ ! -f ${expected_file} ]; then
-    echo "${expected_file} not found"
-    continue;
-  fi
-  if [ ! -f ${expected_opt_file} ]; then
-    echo "${expected_opt_file} not found"
-    continue;
-  fi
+  for i in $(seq 1 ${num_attempts}); do
+    if ! option_text=$(./etrade quote option -w ${symbol}); then
+      echo "Option for '${symbol}' failed"
+    else
+      break;
+    fi
+  done
 
 done
 

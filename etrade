@@ -4,17 +4,20 @@
 #!/bin/bash
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
 
+source "$PARENT_PATH/lib/common/http_defns.sh"
+source "$PARENT_PATH/lib/auth/auth.sh"
+source "$PARENT_PATH/lib/quote/quote.sh"
+
 export PERSISTENT_VALUE_FILE="/dev/shm/.etrade_vars"
 
 if [ -f "$PERSISTENT_VALUE_FILE" ]; then
   source "$PERSISTENT_VALUE_FILE"
 fi
+if [ -z "${QUOTE_DIR}" ]; then
+  set_persistent_value "QUOTE_DIR" "quotes"
+fi
 
-source "$PARENT_PATH/lib/common/http_defns.sh"
-source "$PARENT_PATH/lib/auth/auth.sh"
-source "$PARENT_PATH/lib/quote/quote.sh"
-
-set -x
+# set -x
 
 case $1 in
   auth)
