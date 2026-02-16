@@ -127,9 +127,9 @@ function is_authorization_valid() {
 
   local decoded_access_secret=$(pct_decode ${encoded_access_secret})
 
-  quote_url="${quote_url_base}AA.json"
+  local quote_url="${quote_url_base}AA.json"
 
-  detail_flag=FUNDAMENTAL
+  local detail_flag=FUNDAMENTAL
 
   declare -A quote_params
 
@@ -191,22 +191,22 @@ function get_new_authorization() {
 
   request_params["oauth_callback"]="oob"
 
-  request_token_response=$(send_etrade_query "${oauth_request_url}" request_params "no_secret")
+  local request_token_response=$(send_etrade_query "${oauth_request_url}" request_params "no_secret")
 
   if [[ "${request_token_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)\&oauth_callback_confirmed.* ]]; then
-    encoded_request_token="${BASH_REMATCH[1]}"
-    encoded_request_secret="${BASH_REMATCH[2]}"
+    local encoded_request_token="${BASH_REMATCH[1]}"
+    local encoded_request_secret="${BASH_REMATCH[2]}"
   else
     echo "${request_token_response}" > request_response.txt
     echo "response parsing failed, output in request_response.txt"
     return 1
   fi
 
-  decoded_request_token=$(pct_decode ${encoded_request_token})
-  decoded_request_secret=$(pct_decode ${encoded_request_secret})
+  local decoded_request_token=$(pct_decode ${encoded_request_token})
+  local decoded_request_secret=$(pct_decode ${encoded_request_secret})
 
   #--- User login and get access code ---#
-  authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
+  local authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
 
   echo ""
   echo "************************************"
@@ -230,7 +230,7 @@ function get_new_authorization() {
   authorize_params["oauth_token"]="${encoded_request_token}"
   authorize_params["oauth_verifier"]="${verification_code}"
 
-  access_response=$(send_etrade_query "${oauth_access_url}" authorize_params ${decoded_request_secret})
+  local access_response=$(send_etrade_query "${oauth_access_url}" authorize_params ${decoded_request_secret})
 
   if ! set_auth_keys "${access_response}"; then
     echo "response parsing failed, response text:"
@@ -257,7 +257,7 @@ function has_or_get_authorization() {
 }
 
 function execute_auth() {
-  subcommand=$1
+  local subcommand=$1
   case "$subcommand" in
     setup)
       save_account_api_keys

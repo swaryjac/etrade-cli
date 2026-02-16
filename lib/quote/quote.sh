@@ -17,7 +17,7 @@ function import_secret_variables() {
 }
 
 function get_quote() {
-  OPTS=$(getopt -o fw --long file,write -- "$@")
+  local OPTS=$(getopt -o fw --long file,write -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -96,7 +96,7 @@ function get_quote() {
 function get_quote_price() {
   local quote_text
   if quote_text=$(get_quote "$@" "ignore_write") && [[ "${quote_text}" =~ lastTrade\":([0-9]*\.[0-9]*), ]]; then
-    quote_price="${BASH_REMATCH[1]}"
+    local quote_price="${BASH_REMATCH[1]}"
     echo "$quote_price"
     return 0
   else
@@ -106,7 +106,7 @@ function get_quote_price() {
 }
 
 function get_quote_option() {
-  OPTS=$(getopt -o s:n:fw --long strike-price:,number-strikes:,file,write -- "$@")
+  local OPTS=$(getopt -o s:n:fw --long strike-price:,number-strikes:,file,write -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -204,7 +204,7 @@ function get_quote_option() {
 }
 
 function get_quote_batch() {
-  OPTS=$(getopt -o oWf: --long options,weekly,file: -- "$@")
+  local OPTS=$(getopt -o oWf: --long options,weekly,file: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -278,7 +278,7 @@ function get_quote_batch() {
 }
 
 function execute_quote() {
-  subcommand=$1
+  local subcommand=$1
   case "$subcommand" in
     price)
       shift

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function calc_available_puts() {
-  OPTS=$(getopt -o m:M:d:Wf: --long min_strike:,max_strike:,spread:,weekly,file: -- "$@")
+  local OPTS=$(getopt -o m:M:d:Wf: --long min_strike:,max_strike:,spread:,weekly,file: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -120,7 +120,7 @@ function calc_available_puts() {
 }
 
 function execute_calc() {
-  subcommand=$1
+  local subcommand=$1
   case "$subcommand" in
     put)
       shift

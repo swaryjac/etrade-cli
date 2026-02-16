@@ -124,7 +124,7 @@ function http_get() {
   arg_array+=("%{http_code}")
   arg_array+=("${request_url}")
 
-  http_status=$(curl "${arg_array[@]}")
+  local http_status=$(curl "${arg_array[@]}")
 
   if [ -z "${output_file}" ]; then
     cat ${temp_response_file}
