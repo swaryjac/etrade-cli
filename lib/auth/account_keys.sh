@@ -31,7 +31,7 @@ function set_permanent_key() {
 
 function get_permanent_key() {
   if [[ $# < 2 ]]; then
-    echo "Failed call to set permanent key, needs at least 2 arguments, got $#" 1>&2
+    echo "Failed call to get permanent key, needs at least 2 arguments, got $#" 1>&2
     return 1
   fi
 
