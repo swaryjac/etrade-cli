@@ -1,5 +1,12 @@
 #!/bin/bash
 
+function is_ticker_symbol_valid() {
+  if [ -n $1 ] && [[ "$1" =~ [A-Z]{1,5} ]]; then
+    return 0
+  fi
+  return 1
+}
+
 function get_weekly_options_equity_symbols() {
   local readonly date_string=$(date +"%Y"-"%m"-"%d")
   local readonly all_weekly_file="/dev/shm/.weekly${date_string}.csv"

@@ -2,10 +2,8 @@
 
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
 
-source "$PARENT_PATH/lib/common/file_defns.sh"
+source "$PARENT_PATH/lib/common/settings.sh"
 source "$PARENT_PATH/lib/common/http_defns.sh"
-source "$PARENT_PATH/lib/common/input.sh"
-source "$PARENT_PATH/lib/common/key_defns.sh"
 source "$PARENT_PATH/lib/common/validation.sh"
 source "$PARENT_PATH/lib/auth/auth.sh"
 source "$PARENT_PATH/lib/quote/quote.sh"

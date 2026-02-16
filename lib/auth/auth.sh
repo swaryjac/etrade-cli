@@ -1,71 +1,11 @@
 #!/bin/bash
 
+source "$PARENT_PATH/lib/auth/account_keys.sh"
+source "$PARENT_PATH/lib/auth/authorization_keys.sh"
+
 oauth_request_url="https://api.etrade.com/oauth/request_token"
 oauth_access_url="https://api.etrade.com/oauth/access_token"
 oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
-
-permanent_key_attr_name="etrade_api_account"
-permanent_key_attr_value="etrade_api_account_key"
-permanent_key_label="Etrade Account Key"
-permanent_secret_attr_value="etrade_api_account_secret"
-permanent_secret_label="Etrade Account Secret"
-
-keyring_name="etrade_keyring"
-
-auth_token_keyname="etrade_api_token"
-auth_secret_keyname="etrade_api_secret"
-
-function save_account_api_keys() {
-  if load_permanent_api_key; then
-    echo "This will remove previously saved key/secret, enter 'y' to proceed" > /dev/tty
-    IFS= read -r user_confirmation
-    if [[ "${user_confirmation}" != y* ]]; then
-      echo "Exiting setup" > /dev/tty
-      return 1
-    fi
-  fi
-
-  declare -a key_attributes
-  key_attributes+=("${permanent_key_attr_name}")
-  key_attributes+=("${permanent_key_attr_value}")
-
-  declare -a secret_attributes
-  secret_attributes+=("${permanent_key_attr_name}")
-  secret_attributes+=("${permanent_secret_attr_value}")
-
-  set_permanent_key "${permanent_key_label}" "${key_attributes[@]}"
-
-  if [ -z $(get_permanent_key "${key_attributes[@]}") ]; then
-    echo "Empty key entered, nothing saved"
-    clear_permanent_key "${key_attributes[@]}"
-    clear_permanent_key "${secret_attributes[@]}"
-    return 1
-  fi
-
-  set_permanent_key "${permanent_secret_label}" "${secret_attributes[@]}"
-
-  if [ -z $(get_permanent_key "${secret_attributes[@]}") ]; then
-    echo "Empty secret entered, nothing saved"
-    clear_permanent_key "${key_attributes[@]}"
-    clear_permanent_key "${secret_attributes[@]}"
-    return 1
-  fi
-  return 0
-}
-
-function load_permanent_api_key() {
-  local retrieved_key retrieved_secret
-
-  if retrieved_key=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_key_attr_value}") && \
-     retrieved_secret=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_secret_attr_value}"); then
-     export key_value="${retrieved_key}"
-     export secret_value="${retrieved_secret}"
-     return 0
-  fi
-  unset key_value
-  unset secret_value
-  return 1
-}
 
 function authorized_in_last_hour() {
   if [ -n "${time_last_auth}" ] && is_num "${time_last_auth}"; then
@@ -75,41 +15,6 @@ function authorized_in_last_hour() {
       return 0
     fi
   fi
-  return 1
-}
-
-function set_auth_keys() {
-  local access_response_text="$1"
-
-  if [[ ! "${access_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)$ ]]; then
-    return 1
-  fi
-  local encoded_access_token="${BASH_REMATCH[1]}"
-  local encoded_access_secret="${BASH_REMATCH[2]}"
-  if ! set_volatile_key "${keyring_name}" "${auth_token_keyname}" "${encoded_access_token}" || \
-     ! set_volatile_key "${keyring_name}" "${auth_secret_keyname}" "${encoded_access_secret}"; then
-    return 1
-  fi
-
-  return 0
-}
-
-function clear_auth_keys() {
-  set_persistent_value "time_last_auth" ""
-  clear_volatile_keyring "${keyring_name}"
-}
-
-function retrieve_auth_keys() {
-  # separate declaration and assignment so local doesn't set last return value
-  local retrieved_token retrieved_secret
-  if retrieved_token=$(get_volatile_key "${auth_token_keyname}") && \
-     retrieved_secret=$(get_volatile_key "${auth_secret_keyname}"); then
-    export access_token="${retrieved_token}"
-    export access_secret="${retrieved_secret}"
-    return 0
-  fi
-  unset access_token
-  unset access_secret
   return 1
 }
 
@@ -149,6 +54,20 @@ function is_authorization_valid() {
   return 1
 }
 
+function check_authorization() {
+  if is_authorization_valid; then
+    echo "Currently Authorized"
+    return 0
+  elif [[ $? == 10 ]]; then
+    echo "Authorization timed out"
+    return 10
+  else
+    echo "No Current Authorization"
+    return 1
+  fi
+
+}
+
 function renew_auth_token() {
   if ! load_permanent_api_key; then
     echo "Error, need permanent api key"
@@ -173,8 +92,10 @@ function renew_auth_token() {
 
   if [[ $? == 0 && "${renew_response}" == *"renewed"* ]]; then
     set_persistent_value "time_last_auth" "$(date +%s)"
+    echo "Authorization renewed at $(date -d @${time_last_auth})"
     return 0
   fi
+  echo "Renewal failed!"
   return 1
 }
 
@@ -208,15 +129,15 @@ function get_new_authorization() {
   #--- User login and get access code ---#
   local authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
 
-  echo ""
-  echo "************************************"
+  echo "" > /dev/tty
+  echo "************************************" > /dev/tty
   if command -v xdg-open &> /dev/null; then
     xdg-open "${authorize_url}" &> /dev/null &
-    echo "If browser page didn't load, go to:"
+    echo "If browser page didn't load, go to:" > /dev/tty
   fi
-  echo "${authorize_url}"
-  echo "************************************"
-  echo ""
+  echo "${authorize_url}" > /dev/tty
+  echo "************************************" > /dev/tty
+  echo "" > /dev/tty
 
   read -p "Input verification code: " verification_code
   if [ -z verification_code ]; then
@@ -248,9 +169,13 @@ function has_or_get_authorization() {
   if ! load_permanent_api_key; then
     echo "Error, need permanent api key"
     return 1
-  elif { authorized_in_last_hour && retrieve_auth_keys; } || \
-       { is_authorization_valid || { [[ $? == 10 ]] && renew_auth_token; }; }; then
+  elif authorized_in_last_hour && retrieve_auth_keys; then
     echo "Authorization valid as of $(date -d @${time_last_auth})"
+    return 0
+  elif is_authorization_valid; then
+    echo "Authorization valid as of $(date -d @${time_last_auth})"
+    return 0
+  elif [[ $? == 10 ]] && renew_auth_token; then
     return 0
   fi
   get_new_authorization
@@ -263,24 +188,10 @@ function execute_auth() {
       save_account_api_keys
       ;;
     check)
-      if is_authorization_valid; then
-        echo "Currently Authorized"
-        return 0
-      elif [[ $? == 10 ]]; then
-        echo "Authorization timed out"
-        return 10
-      else
-        echo "No Current Authorization"
-        return 1
-      fi
+      check_authorization
       ;;
     renew)
-      if ! renew_auth_token; then
-        echo "Renewal failed!"
-        return 1
-      fi
-      echo "Authorization renewed at $(date -d @${time_last_auth})"
-      return 0
+      renew_auth_token
       ;;
     get)
       has_or_get_authorization

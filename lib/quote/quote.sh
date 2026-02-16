@@ -1,5 +1,8 @@
 #!/bin/bash
 
+source "$PARENT_PATH/lib/quote/quote_files.sh"
+source "$PARENT_PATH/lib/quote/ticker_symbols.sh"
+
 quote_url_base="https://api.etrade.com/v1/market/quote/"
 option_url="https://api.etrade.com/v1/market/optionchains.json"
 
