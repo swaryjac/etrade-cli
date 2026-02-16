@@ -58,7 +58,7 @@ function get_quote() {
 
   local quote_file=$(get_quote_filename "${quote_symbol}")
   if $read_from_file; then
-    if quote_file_exists "${quote_symbol}"; then
+    if ! quote_file_exists "${quote_symbol}"; then
       echo "Couldn't find quote file: ${quote_file}"
       return 1
     fi
@@ -156,7 +156,7 @@ function get_quote_option() {
     return 1
   fi
 
-  local no_strikes=${opt_no_strikes:-12}
+  local no_strikes=${opt_no_strikes:-20}
   if ! is_num "${no_strikes}"; then
     echo "Illegal number of strikes: ${no_strikes}"
     return 1
@@ -164,7 +164,7 @@ function get_quote_option() {
 
   local option_file=$(get_option_filename "${quote_symbol}")
   if $read_from_file; then
-    if option_file_exists "${quote_symbol}"; then
+    if ! option_file_exists "${quote_symbol}"; then
       echo "Couldn't find option file: ${option_file}"
       return 1
     fi
