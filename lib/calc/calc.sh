@@ -84,29 +84,38 @@ function calc_available_puts() {
   local pair stock_price quote_symbol
   for pair in "${price_symbol_pairs[@]}"; do
     IFS=',' read stock_price quote_symbol <<< "${pair}"
-    
-    local option_file="quotes/${quote_symbol}_opt.json"
+
+    local option_file=$(get_option_filename "${quote_symbol}")
     if ! jq -e 'has("OptionChainResponse")' ${option_file} > /dev/null; then
       echo "No option detected for ${quote_symbol}"
+      continue
+    fi
+
+    if [ $(echo "$stock_price < $min_strike" | bc -l) -eq 1 ]; then
       continue
     fi
 
     local one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
 
     for i in {0..9}; do
-      local put_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.bid' ${option_file})
       local strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.strikePrice' ${option_file})
 
-      if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ]; then
-        break;
+      # strike price increases each iteration, if it's larger than max conditions, quit loop
+      if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ] || \
+         [ $(echo "$strike_price > $max_strike" | bc -l) -eq 1 ]; then
+        break
+      elif [ $(echo "$strike_price < $min_strike" | bc -l) -eq 1 ]; then
+        # don't perform calculations if strike price is below minimum
+        continue
       fi
 
       local price_spread="$(echo "$stock_price - $strike_price" | bc)"
-      if [ $(echo "$strike_price > $max_strike" | bc -l) -eq 1 ] || \
-         [ $(echo "$strike_price < $min_strike" | bc -l) -eq 1 ] || \
-         [ $(echo "$price_spread < $min_spread" | bc -l) -eq 1 ]; then
-        continue
+      if [ $(echo "$price_spread < $min_spread" | bc -l) -eq 1 ]; then
+        # spread decreases each iteration, quit loop if it's less than min condition
+        break
       fi
+
+      local put_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.bid' ${option_file})
 
       if [ $(echo "$put_price >= $one_pct_price" | bc -l) -eq 1 ]; then
         local put_pct="$(echo "scale=3; $put_price / $stock_price" | bc)"
