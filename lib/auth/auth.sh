@@ -181,6 +181,52 @@ function has_or_get_authorization() {
   get_new_authorization
 }
 
+function usage_auth() {
+  printf "Usage:\n"
+  printf "\tetrade auth {-h --help}\n"
+  printf "\tetrade auth <subcommand>\n\n"
+  printf "Subcommand:\n"
+  subcmd_len=6
+  sec_line_indent=$((subcmd_len + 3))
+  printf "\t%-${subcmd_len}s - %s\n" "setup" \
+           "Enter your Etrade Account API key and secret for storage in gnome-keyring"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Required for authorization to perform all quote operations"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "check" \
+           "Print the current authorization status:"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "No held account key, No authorization token, token timed out (can be renewed)"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "token expired, or token held and currently authorized"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "renew" \
+           "Attempt to renew the current authorization token"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "get" \
+           "Gets a new authorization token, if required"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Attempts to renew token if it is timed out"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Prints time of last authorization if still valid"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "force" \
+           "Gets a new authorization token, no matter the status of any currently held token"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "revoke" \
+           "Delete any held authorization token"
+}
+
+function help_auth() {
+  printf "Etrade CLI Authorization\n"
+  printf "\tAuthorizes use of the Etrade API for an account with an access key/secret\n"
+  printf "\tManages Etrade developer account token/secret using gnome-keyring\n"
+  printf "\tRequests authorization and manages tokens in Linux keyctl keyring\n"
+  printf "\tAuthorization must be obtained in order to use the Etrade CLI quote operations\n"
+  printf "\n"
+  usage_auth
+}
+
 function execute_auth() {
   local subcommand=$1
   case "$subcommand" in
@@ -202,8 +248,12 @@ function execute_auth() {
     revoke)
       clear_auth_keys
       ;;
+    -h|--help)
+      help_auth
+      ;;
     *)
-      echo "Bad subcommand"
+      printf "Unrecognized subcommand '${subcommand}'\n\n" 1>&2
+      usage_auth 1>&2
       return 1
       ;;
   esac

@@ -1,5 +1,22 @@
 #!/bin/bash
 
+function usage_main() {
+  printf "Usage:\n"
+  printf "\tetrade {-h --help}\n"
+  local cmd_len=11
+  printf "\tetrade %-${cmd_len}s {-h --help}\n"                            "<command>"
+  printf "\tetrade %-${cmd_len}s <subcommand>\n"                           "auth"
+  printf "\tetrade %-${cmd_len}s [subcommand] [options] <ticker symbol>\n" "quote"
+  printf "\tetrade %-${cmd_len}s <subcommand> [options]\n"                 "calc"
+}
+
+function help_main() {
+  printf "Etrade CLI - "
+  printf "Command Line Interface to access Etrade using developer keys for a personal account"
+  printf "\n\n"
+  usage_main
+}
+
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
 
 source "$PARENT_PATH/lib/common/settings.sh"
@@ -28,8 +45,12 @@ case $1 in
     shift
     execute_calc $@
     ;;
+  -h|--help)
+    help_main
+    ;;
   *)
-    echo "Error"
+    printf "Error: Unrecognized command '$1'\n\n" 1>&2
+    usage_main 1>&2
     exit 1
     ;;
 esac
