@@ -280,6 +280,73 @@ function get_quote_batch() {
   done
 }
 
+function usage_quote() {
+  subcmd_len=6
+  sec_line_indent=$((subcmd_len + 2))
+  printf "Usage:\n"
+  printf "\tetrade quote {-h --help}\n"
+  printf "\tetrade quote [subcommand] [options] <ticker_symbol>\n\n"
+  printf "Subcommand:\n"
+  printf "\t%-${subcmd_len}s - %s\n" "[none]" \
+           "Prints a FUNDAMENTAL json quote for the stock of the given ticker symbol"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "price" \
+           "Prints the 'last price' for the stock of the given ticker symbol"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "option" \
+           "Prints json quote of an option chain for the stock of the given ticker symbol"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "batch" \
+           "Gets quotes for a set of stocks, optionally also getting option chains"
+  printf "\t%${sec_line_indent}s %s\n" " " \
+           "Saves quotes the the cache directory specified by CACHE_DIR in settings"
+  printf "\t%${sec_line_indent}s %s\n" " " \
+           "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline"
+  printf "\n"
+  printf "Options:\n"
+  option_title_len=19
+  printf "\t%-${option_title_len}s %s\n" "-w --write-cache" \
+           "Saves output to file in the cache directory specified by CACHE_DIR in settings"
+  printf "\t%${option_title_len}s %s\n" " " "Does not print quote to stdout"
+  printf "\t%${option_title_len}s %s\n" " " "Valid for: [none], option"
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-r --read-cache" \
+           "Reads requested information from file in cache directory specified by CACHE_DIR in"
+  printf "\t%${option_title_len}s %s\n" " " \
+           "settings. If supplied with -w option, -r takes precedence"
+  printf "\t%${option_title_len}s Valid for: [none], price, option\n" " "
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-s --strike-price" \
+           "The price retrieve options quote 'near'. Defaults to the stock's lastPrice."
+  printf "\t%${option_title_len}s Valid for: option when not reading from local cache\n" " "
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-n --number-strikes" \
+           "The number of strikes, centered around the strike-price, to retrieve a quote for"
+  printf "\t%${option_title_len}s Valid for: option when not reading from local cache\n" " "
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-O --options" \
+           "Saves an option chain quote in addition to FUNDAMENTAL stock quote"
+  printf "\t%${option_title_len}s Valid for: batch\n" " "
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-W --weekly" \
+           "Instead of accepting symbols via stdin, uses all equities with weekly options"
+  printf "\t%${option_title_len}s %s\n" " " \
+           "available as specified at www.cboe.com"
+  printf "\t%${option_title_len}s Valid for: batch\n" " "
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-i --input" \
+           "Accepts the name of a file to use as input specifying the symbols for which to"
+  printf "\t%${option_title_len}s %s\n" " " \
+           "retrieve quotes for. Symbols can be separated by ' ', ',', ';', or newline"
+  printf "\t%${option_title_len}s Valid for: batch\n" " "
+}
+
+function help_quote() {
+  printf "Etrade CLI Quote\n"
+  printf "\t\n"
+  usage_quote
+}
+
 function execute_quote() {
   local subcommand=$1
   case "$subcommand" in
@@ -297,11 +364,27 @@ function execute_quote() {
       ;;
     clean)
       shift
-      if [ -d "${QUOTE_DIR}" ]; then
-        find "${QUOTE_DIR}" -name "*.json" -delete
+      if [ -d "${CACHE_DIR}" ]; then
+        find "${CACHE_DIR}" -name "*.json" -delete
       fi
       ;;
+    -h|--help)
+      help_quote
+      ;;
+    "")
+      printf "Error: Ticker Symbol required\n\n" 2>&1
+      usage_quote 2>&1
+      ;;
+    -*)
+      get_quote "$@"
+      ;;
     *)
+      if ! is_ticker_symbol_valid "${!#}"; then
+        printf "Error: unrecognized subcommand '%s' or illegal ticker symbol '%s'\n\n" \
+               "$subcommand" "${!#}" 2>&1
+        usage_quote 2>&1
+        return 1
+      fi
       get_quote "$@"
       ;;
   esac
