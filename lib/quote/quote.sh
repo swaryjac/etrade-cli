@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$PARENT_PATH/lib/quote/quote_files.sh"
+source "$PARENT_PATH/lib/quote/cache_files.sh"
 source "$PARENT_PATH/lib/quote/ticker_symbols.sh"
 
 quote_url_base="https://api.etrade.com/v1/market/quote/"
@@ -207,7 +207,7 @@ function get_quote_option() {
 }
 
 function get_quote_batch() {
-  local OPTS=$(getopt -o oWi: --long options,weekly,input: -- "$@")
+  local OPTS=$(getopt -O oWi: --long options,weekly,input: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -217,7 +217,7 @@ function get_quote_batch() {
   local get_for_weekly_equities=false
   while true; do
     case "$1" in
-      -o|--options)
+      -O|--options)
         get_option_quotes=true
         shift
         ;;
