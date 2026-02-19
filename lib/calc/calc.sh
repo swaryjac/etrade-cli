@@ -95,10 +95,10 @@ function calc_available_puts() {
       continue
     fi
 
-    local one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
-
     for i in {0..9}; do
       local strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.strikePrice' ${option_file})
+
+      local one_pct_price="$(echo "scale=3; $strike_price * 0.01" | bc)"
 
       # strike price increases each iteration, if it's larger than max conditions, quit loop
       if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ] || \
