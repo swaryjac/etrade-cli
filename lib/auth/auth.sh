@@ -222,6 +222,7 @@ function help_auth() {
   printf "\tAuthorizes use of the Etrade API for an account with an access key/secret\n"
   printf "\tManages Etrade developer account token/secret using gnome-keyring\n"
   printf "\tRequests authorization and manages tokens in Linux keyctl keyring\n"
+  printf "\tRequires user to follow link, sign in, accept use, and paste code into CLI\n"
   printf "\tAuthorization must be obtained in order to use the Etrade CLI quote operations\n"
   printf "\n"
   usage_auth
