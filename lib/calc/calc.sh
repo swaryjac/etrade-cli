@@ -65,7 +65,7 @@ function calc_available_puts() {
     if ! quote_file_exists "${symbol}"; then
       get_quote -w "${symbol}"
     fi
-    local option_stock_price=$(get_quote_price -f "${symbol}")
+    local option_stock_price=$(get_quote_price -r "${symbol}")
     if [ -n "${option_stock_price}" ] && ! option_file_exists "${symbol}"; then
       get_quote_option -w -s "${option_stock_price}" "${symbol}"
     fi

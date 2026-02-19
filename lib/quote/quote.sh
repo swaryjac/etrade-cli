@@ -207,7 +207,7 @@ function get_quote_option() {
 }
 
 function get_quote_batch() {
-  local OPTS=$(getopt -o oWf: --long options,weekly,file: -- "$@")
+  local OPTS=$(getopt -o oWi: --long options,weekly,input: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -225,7 +225,7 @@ function get_quote_batch() {
         get_for_weekly_equities=true
         shift
         ;;
-      -f|--file)
+      -i|--input)
         local input_file="$2"
         shift 2
         ;;
@@ -265,7 +265,7 @@ function get_quote_batch() {
     done
 
     if $get_option_quotes; then
-      if ! stock_price=$(get_quote_price -f ${symbol}); then
+      if ! stock_price=$(get_quote_price -r ${symbol}); then
         echo "Failed getting price: ${symbol}"
         continue
       fi
