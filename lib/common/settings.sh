@@ -1,7 +1,7 @@
 #!/bin/bash
 
 readonly PERSISTENT_VALUE_FILE="$HOME/.etrade_vars"
-readonly DEFAULT_QUOTE_DIR="/dev/shm/.etrade_quotes"
+readonly DEFAULT_CACHE_DIR="/dev/shm/.etrade_quotes"
 
 function set_persistent_value() {
   local key="$1"
@@ -23,7 +23,7 @@ function load_persistent_values() {
   if [ -f "$PERSISTENT_VALUE_FILE" ]; then
     source "$PERSISTENT_VALUE_FILE"
   fi
-  if [ -z "${QUOTE_DIR}" ]; then
-    set_persistent_value "QUOTE_DIR" "$DEFAULT_QUOTE_DIR"
+  if [ -z "${CACHE_DIR}" ]; then
+    set_persistent_value "CACHE_DIR" "$DEFAULT_CACHE_DIR"
   fi
 }

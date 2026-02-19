@@ -20,22 +20,22 @@ function import_secret_variables() {
 }
 
 function get_quote() {
-  local OPTS=$(getopt -o fw --long file,write -- "$@")
+  local OPTS=$(getopt -o rw --long read-cache,write-cache -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
   fi
   eval set -- "$OPTS"
-  local read_from_file=false
-  local write_to_file=false
+  local read_from_cache=false
+  local write_to_cache=false
   while true; do
     case "$1" in
-      -f|--file)
-        read_from_file=true
+      -r|--read-cache)
+        read_from_cache=true
         shift
         ;;
-      -w|--write)
-        write_to_file=true
+      -w|--write-cache)
+        write_to_cache=true
         shift
         ;;
       --)
@@ -56,11 +56,11 @@ function get_quote() {
     return 1
   fi
   if [[ $1 == "ignore_write" ]]; then
-    write_to_file=false
+    write_to_cache=false
   fi
 
   local quote_file=$(get_quote_filename "${quote_symbol}")
-  if $read_from_file; then
+  if $read_from_cache; then
     if ! quote_file_exists "${quote_symbol}"; then
       echo "Couldn't find quote file: ${quote_file}"
       return 1
@@ -88,7 +88,7 @@ function get_quote() {
     echo "Failed retrieving price: ${quote_symbol}"
     exit 1
   fi
-  if $write_to_file; then
+  if $write_to_cache; then
     echo "${quote_text}" > "${quote_file}"
   else
     echo "${quote_text}"
@@ -109,14 +109,14 @@ function get_quote_price() {
 }
 
 function get_quote_option() {
-  local OPTS=$(getopt -o s:n:fw --long strike-price:,number-strikes:,file,write -- "$@")
+  local OPTS=$(getopt -o s:n:rw --long strike-price:,number-strikes:,read-cache,write-cache -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
   fi
   eval set -- "$OPTS"
-  local read_from_file=false
-  local write_to_file=false
+  local read_from_cache=false
+  local write_to_cache=false
   while true; do
     case "$1" in
       -s|--strike-price)
@@ -127,12 +127,12 @@ function get_quote_option() {
         local opt_no_strikes="$2"
         shift 2
         ;;
-      -f|--file)
-        read_from_file=true
+      -r|--read-cache)
+        read_from_cache=true
         shift
         ;;
-      -w|--write)
-        write_to_file=true
+      -w|--write-cache)
+        write_to_cache=true
         shift
         ;;
       --)
@@ -166,7 +166,7 @@ function get_quote_option() {
   fi
 
   local option_file=$(get_option_filename "${quote_symbol}")
-  if $read_from_file; then
+  if $read_from_cache; then
     if ! option_file_exists "${quote_symbol}"; then
       echo "Couldn't find option file: ${option_file}"
       return 1
@@ -199,7 +199,7 @@ function get_quote_option() {
     )
   fi
 
-  if $write_to_file; then
+  if $write_to_cache; then
     echo "$option_text" > "${option_file}"
   else
     echo "$option_text"
@@ -243,7 +243,7 @@ function get_quote_batch() {
   if $get_for_weekly_equities; then
     local all_symbols=$(get_weekly_options_equity_symbols)
   elif [ -n "${input_file}" ]; then
-    local all_symbols=$(get_all_symbols_from_file "${input_file}")
+    local all_symbols=$(get_all_symbols_from_cache "${input_file}")
   else
     local all_symbols=$(get_all_symbols_from_stdin)
   fi

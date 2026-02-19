@@ -28,8 +28,8 @@ source "$PARENT_PATH/lib/calc/calc.sh"
 
 load_persistent_values
 
-if [ ! -d "${QUOTE_DIR}" ]; then
-  mkdir -p "${QUOTE_DIR}"
+if [ ! -d "${CACHE_DIR}" ]; then
+  mkdir -p "${CACHE_DIR}"
 fi
 
 case $1 in

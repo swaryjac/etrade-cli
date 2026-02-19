@@ -2,7 +2,7 @@
 
 function get_all_saved_option_file_symbols() {
   local path_name
-  for path_name in ${QUOTE_DIR}/*_opt.json; do
+  for path_name in ${CACHE_DIR}/*_opt.json; do
     local file_name_only="${path_name##*/}"
     echo "${file_name_only%_opt.json}"
   done
@@ -10,12 +10,12 @@ function get_all_saved_option_file_symbols() {
 
 function get_quote_filename() {
   local symbol=$1
-  echo "${QUOTE_DIR}/${symbol}.json"
+  echo "${CACHE_DIR}/${symbol}.json"
 }
 
 function get_option_filename() {
   local symbol=$1
-  echo "${QUOTE_DIR}/${symbol}_opt.json"
+  echo "${CACHE_DIR}/${symbol}_opt.json"
 }
 
 function quote_file_exists() {

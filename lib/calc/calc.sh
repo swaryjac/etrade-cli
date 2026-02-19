@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function calc_available_puts() {
-  local OPTS=$(getopt -o m:M:d:Wf: --long min_strike:,max_strike:,spread:,weekly,file: -- "$@")
+  local OPTS=$(getopt -o m:M:d:Wi: --long min_strike:,max_strike:,spread:,weekly,input: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -33,7 +33,7 @@ function calc_available_puts() {
         get_for_weekly_equities=true
         shift
         ;;
-      -f|--file)
+      -i|--input)
         local input_file="$2"
         shift 2
         ;;
