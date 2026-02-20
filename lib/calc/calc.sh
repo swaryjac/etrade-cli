@@ -126,8 +126,10 @@ function calc_available_puts() {
 
       if [ $(echo "$put_price >= $one_pct_price" | bc -l) -eq 1 ]; then
         local put_pct="$(echo "scale=3; $put_price / $strike_price" | bc)"
-        echo "$quote_symbol: $strike_price $put_price $put_pct $price_spread"
-        echo "${quote_symbol},${stock_price},${strike_price},${put_price},${put_pct},${price_spread}" >> $output_csv_file
+        printf "%-5s %5.2f %4.2f %4.2f %5.2f\n" \
+                 "${quote_symbol}" "$strike_price" "$put_price" "$put_pct" "$price_spread"
+        echo "${quote_symbol},${stock_price},${strike_price},${put_price},${put_pct},${price_spread}" \
+               >> $output_csv_file
         break;
       fi
     done

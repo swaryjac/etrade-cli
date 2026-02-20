@@ -46,10 +46,16 @@ function get_all_symbols_from_stdin() {
   if [[ -t 0 ]]; then
     echo "Enter stock symbols, separated by ',' ';' ' ' or newlines. Ctrl+d to complete:" > /dev/tty
   fi
+
   local all_symbols=""
   while IFS= read -r line; do
     all_symbols="$all_symbols $line"
   done
+
   echo "${all_symbols}" | sed 's/[,;]/ /g'
+
+  if [[ -t 0 ]]; then
+    printf "\n" > /dev/tty
+  fi
   return 0
 }
