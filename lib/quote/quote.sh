@@ -282,7 +282,7 @@ function get_quote_batch() {
 
 function usage_quote() {
   subcmd_len=6
-  sec_line_indent=$((subcmd_len + 2))
+  sec_line_indent=$((subcmd_len + 3))
   printf "Usage:\n"
   printf "\tetrade quote {-h --help}\n"
   printf "\tetrade quote [subcommand] [options] <ticker_symbol>\n\n"
@@ -294,13 +294,15 @@ function usage_quote() {
            "Prints the 'last price' for the stock of the given ticker symbol"
   printf "\n"
   printf "\t%-${subcmd_len}s - %s\n" "option" \
-           "Prints json quote of an option chain for the stock of the given ticker symbol"
+           "Prints json quote of an option chain for the stock of the given ticker symbol."
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Automatically uses expiration date of 'next friday' as provided by the 'date' cmd."
   printf "\n"
   printf "\t%-${subcmd_len}s - %s\n" "batch" \
            "Gets quotes for a set of stocks, optionally also getting option chains"
-  printf "\t%${sec_line_indent}s %s\n" " " \
+  printf "\t%${sec_line_indent}s%s\n" " " \
            "Saves quotes the the cache directory specified by CACHE_DIR in settings"
-  printf "\t%${sec_line_indent}s %s\n" " " \
+  printf "\t%${sec_line_indent}s%s\n" " " \
            "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline"
   printf "\n"
   printf "Options:\n"
@@ -337,13 +339,19 @@ function usage_quote() {
   printf "\t%-${option_title_len}s %s\n" "-i --input" \
            "Accepts the name of a file to use as input specifying the symbols for which to"
   printf "\t%${option_title_len}s %s\n" " " \
-           "retrieve quotes for. Symbols can be separated by ' ', ',', ';', or newline"
+           "retrieve quotes. Symbols can be separated by ' ', ',', ';', or newline"
   printf "\t%${option_title_len}s Valid for: batch\n" " "
 }
 
 function help_quote() {
   printf "Etrade CLI Quote\n"
-  printf "\t\n"
+  printf "\tGets stock and option quotes using Etrade's api. Individual quotes are printed to stdout\n"
+  printf "\tby default. Batch operations and optionally individual quotes are saved to file in a\n"
+  printf "\tlocal cache directory specified by CACHE_DIR in settings. The quotessaved to cache are\n"
+  printf "\tused by 'calc' operations.  Individual quote retrievals can also display quotes from the\n"
+  printf "\tcache instead of accessing Etrade.\n"
+  printf "\tThe 'auth' operations will be called if necessary by the 'quote' operations.\n"
+  printf "\n"
   usage_quote
 }
 
