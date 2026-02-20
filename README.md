@@ -8,14 +8,30 @@ In order to use this tool, you will need an ETrade account, and to have consumer
 ```console
 $ ./etrade auth setup
 Enter key for Etrade Account Key:
-Password: 
+Password:
 Enter key for Etrade Account Secret:
-Password: 
+Password:
+```
+
+To obtain authorization, with `auth get`, `auth force`, or any `quote` operation, a link will be provided (and browser opened to the same url if default browser is set) for user to log in and authenticate. A code is provided to the user that must be pasted into the authorization prompt.
+
+```console
+$ ./etrade auth get
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+100    156   0    156   0      0    101      0           00:01            101
+
+************************************
+If browser page didn't load, go to:
+https://us.etrade.com/e/t/etws/authorize?key=somekeyvalue&token=sometokenvalue%3D
+************************************
+
+Input verification code:
 ```
 
 ### Put Option Calculation
 
-The `calc put` command searches for put options expiring 'next Friday' (as determined by `date`) and finds puts with a bid price of >= 1% of the strike price, with the maximum spread/difference between that stock's price and the option strike price. See a simple example below, showing symbol, strike, bid, 'percent of strike', and the spread between strike and stock price. The command also generates a .csv file with header.
+The `calc put` command searches for put options expiring 'next Friday' (as determined by `date`) and finds puts with a bid price of >= 1% of the strike price, outputting the option with maximum spread/difference between that stock's price and the option strike price. See a simple example below, showing symbol, strike, bid, 'percent of strike', and the spread between strike and stock price. The command also generates a .csv file with header.
 
 ```console
 $ ./etrade calc put
@@ -61,7 +77,7 @@ Similar to the `calc` command, `quote batch` has a `-W|--weekly` option to get q
 
 Not yet. To date only run in place.
 
-The tool makes use of the Linux keyring, Gnome-keyring, `curl` and `jq` which all must be available.
+The tool makes use of the Linux keyring with `keyctl`, Gnome-keyring using `secret-tool`, `curl` and `jq` which all must be available.
 
 ## License
 
