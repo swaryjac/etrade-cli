@@ -135,6 +135,63 @@ function calc_available_puts() {
   done
 }
 
+function usage_calc() {
+  subcmd_len=3
+  sec_line_indent=$((subcmd_len + 3))
+  printf "Usage:\n"
+  printf "\tetrade calc {-h --help}\n"
+  printf "\tetrade calc [subcommand] [options]\n\n"
+  printf "Subcommand:\n"
+  printf "\t%-${subcmd_len}s - %s\n" "put" \
+           "Calculates the percentage of strike price, based on available Bid, for the given stocks"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "and collects the information for puts available above 1% of the strike. Only provides"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "the strike with maximum spread from the stock's lastPrice value for any given stock."
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline. Use option"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "-W, -i, or -r to specify by other means"
+  printf "\n"
+  printf "Options:\n"
+  option_title_len=19
+  printf "\t%-${option_title_len}s %s\n" "-m --min-strike" \
+           "Specifies the minimum strike price to perform calculations on and include in output"
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-M --max-strike" \
+           "Specifies the maximum strike price to perform calculations on and include in output"
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-d --spread" \
+           "Specifies the minimum 'spread' to perform calculations on and include in output."
+  printf "\t%${option_title_len}s %s\n" " " \
+           "Spread refers to the difference between the strike price and the stock's lastPrice."
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-W --weekly" \
+           "Performs calculation on all equities with weekly options available as specified at"
+  printf "\t%${option_title_len}s %s\n" " " \
+           "www.cboe.com"
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-i --input" \
+           "Accepts the name of a file to use as input specifying the symbols for which to"
+  printf "\t%${option_title_len}s %s\n" " " \
+           "perform calculations. Symbols can be separated by ' ', ',', ';', or newline"
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-r --read-cache" \
+           "Performs calculation on all saved quotes found in cache directory specified by CACHE_DIR"
+  printf "\t%${option_title_len}s %s\n" " " \
+           "in settings."
+  printf "\n"
+}
+
+function help_calc() {
+  printf "Etrade CLI Calc\n"
+  printf "\tPerform calculations based on quotes retrieved from Etrade, generating .csv output. Operates\n"
+  printf "\ton quotes saved to the local cache (specified by CACHE_DIR in settings) if available, calls\n"
+  printf "\t'quote' operations if not available except with the explicit --read-cache option.\n"
+  printf "\n"
+  usage_calc
+}
+
 function execute_calc() {
   local subcommand=$1
   case "$subcommand" in
@@ -142,8 +199,12 @@ function execute_calc() {
       shift
       calc_available_puts "$@"
       ;;
+    -h|--help)
+      help_calc
+      ;;
     *)
-      get_quote "$@"
+      printf "Unrecognized subcommand '${subcommand}'\n\n" 1>&2
+      usage_calc 1>&2
       ;;
   esac
 }
