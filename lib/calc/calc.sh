@@ -125,7 +125,7 @@ function calc_available_puts() {
       local put_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.bid' ${option_file})
 
       if [ $(echo "$put_price >= $one_pct_price" | bc -l) -eq 1 ]; then
-        local put_pct="$(echo "scale=3; $put_price / $stock_price" | bc)"
+        local put_pct="$(echo "scale=3; $put_price / $strike_price" | bc)"
         echo "$quote_symbol: $strike_price $put_price $put_pct $price_spread"
         echo "${quote_symbol},${stock_price},${strike_price},${put_price},${put_pct},${price_spread}" >> $output_csv_file
         break;
