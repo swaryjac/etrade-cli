@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function calc_available_puts() {
-  local OPTS=$(getopt -o m:M:d:Wi: --long min_strike:,max_strike:,spread:,weekly,input: -- "$@")
+  local OPTS=$(getopt -o m:M:d:Wir: --long min-strike:,max-strike:,spread:,weekly,input,read-cache: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -9,15 +9,16 @@ function calc_available_puts() {
   eval set -- "$OPTS"
   local get_option_quotes=false
   local get_for_weekly_equities=false
+  local read_from_cache=false
   while true; do
     case "$1" in
-      -m|--min_strike)
+      -m|--min-strike)
         if is_num "$2"; then
           local opt_min_strike="$2"
         fi
         shift 2
         ;;
-      -M|--max_strike)
+      -M|--max-strike)
         if is_num "$2"; then
           local opt_max_strike="$2"
         fi
@@ -36,6 +37,10 @@ function calc_available_puts() {
       -i|--input)
         local input_file="$2"
         shift 2
+        ;;
+      -r|--read-cache)
+        read_from_cache=true
+        shift
         ;;
       --)
         shift
@@ -56,8 +61,10 @@ function calc_available_puts() {
     local all_symbols=$(get_weekly_options_equity_symbols)
   elif [ -n "${input_file}" ]; then
     local all_symbols=$(get_all_symbols_from_file "${input_file}")
-  else
+  elif $read_from_cache; then
     local all_symbols=$(get_all_saved_option_file_symbols)
+  else
+    local all_symbols=$(get_all_symbols_from_stdin)
   fi
 
   declare -a price_symbol_pairs
