@@ -307,9 +307,12 @@ function usage_quote() {
   printf "\t%-${subcmd_len}s - %s\n" "batch" \
            "Gets quotes for a set of stocks, optionally also getting option chains"
   printf "\t%${sec_line_indent}s%s\n" " " \
-           "Saves quotes the the cache directory specified by CACHE_DIR in settings"
+           "Saves quotes to the cache directory specified by CACHE_DIR in settings"
   printf "\t%${sec_line_indent}s%s\n" " " \
            "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "clear" \
+           "Deletes all quotes in the cache directory specified by CACHE_DIR in settings"
   printf "\n"
   printf "Options:\n"
   option_title_len=19
@@ -376,7 +379,7 @@ function execute_quote() {
       shift
       get_quote_batch "$@"
       ;;
-    clean)
+    clear)
       shift
       if [ -d "${CACHE_DIR}" ]; then
         find "${CACHE_DIR}" -name "*.json" -delete
