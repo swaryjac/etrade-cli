@@ -4,6 +4,7 @@ source "$PARENT_PATH/lib/auth/account_keys.sh"
 source "$PARENT_PATH/lib/auth/authorization_keys.sh"
 
 oauth_request_url="https://api.etrade.com/oauth/request_token"
+user_auth_url="https://us.etrade.com/e/t/etws/authorize"
 oauth_access_url="https://api.etrade.com/oauth/access_token"
 oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
 
@@ -41,8 +42,11 @@ function is_authorization_valid() {
   quote_params["detailFlag"]="${detail_flag}"
   quote_params["oauth_token"]="${encoded_access_token}"
 
+  echo "Checking authorization validity"
+
   local quote_response="$( \
     send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
+      > /dev/null \
   )"
   if [[ $? == 0 ]] && echo "${quote_response}" | jq -e 'has("QuoteResponse")' &> /dev/null ; then
     set_persistent_value "time_last_auth" "$(date +%s)"
@@ -86,8 +90,10 @@ function renew_auth_token() {
   declare -A authorize_params
   authorize_params["oauth_token"]="${encoded_access_token}"
 
+  echo "Renewing Authorization"
+
   local renew_response=$( \
-    send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" \
+    send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" > /dev/null \
   )
 
   if [[ $? == 0 && "${renew_response}" == *"renewed"* ]]; then
@@ -112,7 +118,11 @@ function get_new_authorization() {
 
   request_params["oauth_callback"]="oob"
 
-  local request_token_response=$(send_etrade_query "${oauth_request_url}" request_params "no_secret")
+  echo "Requesting token"
+
+  local request_token_response=$( \
+    send_etrade_query "${oauth_request_url}" request_params "no_secret" > /dev/null \
+  )
 
   if [[ "${request_token_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)\&oauth_callback_confirmed.* ]]; then
     local encoded_request_token="${BASH_REMATCH[1]}"
@@ -127,7 +137,7 @@ function get_new_authorization() {
   local decoded_request_secret=$(pct_decode ${encoded_request_secret})
 
   #--- User login and get access code ---#
-  local authorize_url="https://us.etrade.com/e/t/etws/authorize?key=${key_value}&token=${encoded_request_token}"
+  local authorize_url="${user_auth_url}?key=${key_value}&token=${encoded_request_token}"
 
   echo "" > /dev/tty
   echo "************************************" > /dev/tty
@@ -151,10 +161,14 @@ function get_new_authorization() {
   authorize_params["oauth_token"]="${encoded_request_token}"
   authorize_params["oauth_verifier"]="${verification_code}"
 
-  local access_response=$(send_etrade_query "${oauth_access_url}" authorize_params ${decoded_request_secret})
+  echo "Requesting Authorization"
+
+  local access_response=$( \
+    send_etrade_query "${oauth_access_url}" authorize_params ${decoded_request_secret} > /dev/null \
+  )
 
   if ! set_auth_keys "${access_response}"; then
-    echo "response parsing failed, response text:"
+    echo "Response parsing failed, response text:"
     echo "${access_response}"
     return 1
   fi

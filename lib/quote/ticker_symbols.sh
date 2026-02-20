@@ -14,7 +14,10 @@ function get_weekly_options_equity_symbols() {
   if [ ! -f $all_weekly_file ]; then
     local readonly weekly_csv_url="https://www.cboe.com/available_weeklys/get_csv_download/"
     declare -A empty_array=()
-    if ! http_get ${weekly_csv_url} empty_array ${all_weekly_file}; then
+
+    echo "Downloading available weekly options"
+
+    if ! http_get ${weekly_csv_url} empty_array ${all_weekly_file} > /dev/null; then
       echo "Error getting weekly options from ${weekly_csv_url}"
       return 1
     fi

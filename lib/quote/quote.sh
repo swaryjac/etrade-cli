@@ -79,8 +79,12 @@ function get_quote() {
 
     quote_params["detailFlag"]="${detail_flag}"
     quote_params["oauth_token"]="${access_token}"
+
+    echo "Getting ${quote_symbol} quote"
+
     local quote_text=$( \
       send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
+        > /dev/null \
     )
   fi
 
@@ -194,8 +198,10 @@ function get_quote_option() {
 
     local full_option_url="${option_url}?symbol=${quote_symbol}&strikePriceNear=${strike_price}&noOfStrikes=${no_strikes}&expiryYear=${opt_year}&expiryMonth=${opt_month}&expiryDay=${opt_day}"
 
+    echo "Getting ${quote_symbol} option"
+
     local option_text=$( \
-      send_etrade_query "${full_option_url}" option_params "${decoded_access_secret}" \
+      send_etrade_query "${full_option_url}" option_params "${decoded_access_secret}" > /dev/null \
     )
   fi
 
