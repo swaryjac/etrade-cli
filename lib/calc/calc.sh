@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function calc_available_puts() {
-  local OPTS=$(getopt -o m:M:d:Wir: --long min-strike:,max-strike:,spread:,weekly,input,read-cache: -- "$@")
+  local OPTS=$(getopt -o m:M:d:Wi:r --long min-strike:,max-strike:,spread:,weekly,input:,read-cache -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -76,7 +76,7 @@ function calc_available_puts() {
     if [ -n "${option_stock_price}" ] && ! option_file_exists "${symbol}"; then
       get_quote_option -w -s "${option_stock_price}" "${symbol}"
     fi
-    if [ -z ${option_stock_price} ] || ! option_file_exists "${symbol}"; then
+    if [ -z "${option_stock_price}" ] || ! option_file_exists "${symbol}"; then
       echo "Failed to get option for ${symbol}"
       continue
     fi

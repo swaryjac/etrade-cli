@@ -213,7 +213,7 @@ function get_quote_option() {
 }
 
 function get_quote_batch() {
-  local OPTS=$(getopt -O oWi: --long options,weekly,input: -- "$@")
+  local OPTS=$(getopt -o OWi: --long options,weekly,input: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
