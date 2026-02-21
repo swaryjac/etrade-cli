@@ -84,7 +84,6 @@ function get_quote() {
 
     local quote_text=$( \
       send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
-        > /dev/null \
     )
   fi
 
@@ -201,7 +200,7 @@ function get_quote_option() {
     echo "Getting ${quote_symbol} option"
 
     local option_text=$( \
-      send_etrade_query "${full_option_url}" option_params "${decoded_access_secret}" > /dev/null \
+      send_etrade_query "${full_option_url}" option_params "${decoded_access_secret}" \
     )
   fi
 

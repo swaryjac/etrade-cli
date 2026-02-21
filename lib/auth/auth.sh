@@ -46,7 +46,6 @@ function is_authorization_valid() {
 
   local quote_response="$( \
     send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
-      > /dev/null \
   )"
   if [[ $? == 0 ]] && echo "${quote_response}" | jq -e 'has("QuoteResponse")' &> /dev/null ; then
     set_persistent_value "time_last_auth" "$(date +%s)"
@@ -93,7 +92,7 @@ function renew_auth_token() {
   echo "Renewing Authorization"
 
   local renew_response=$( \
-    send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" > /dev/null \
+    send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" \
   )
 
   if [[ $? == 0 && "${renew_response}" == *"renewed"* ]]; then
@@ -121,7 +120,7 @@ function get_new_authorization() {
   echo "Requesting token"
 
   local request_token_response=$( \
-    send_etrade_query "${oauth_request_url}" request_params "no_secret" > /dev/null \
+    send_etrade_query "${oauth_request_url}" request_params "no_secret" \
   )
 
   if [[ "${request_token_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)\&oauth_callback_confirmed.* ]]; then
@@ -164,7 +163,7 @@ function get_new_authorization() {
   echo "Requesting Authorization"
 
   local access_response=$( \
-    send_etrade_query "${oauth_access_url}" authorize_params ${decoded_request_secret} > /dev/null \
+    send_etrade_query "${oauth_access_url}" authorize_params ${decoded_request_secret} \
   )
 
   if ! set_auth_keys "${access_response}"; then

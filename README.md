@@ -17,13 +17,11 @@ To obtain authorization, with `auth get`, `auth force`, or any `quote` operation
 
 ```console
 $ ./etrade auth get
-  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
-                                 Dload  Upload  Total   Spent   Left   Speed
-100    156   0    156   0      0    101      0           00:01            101
+Requesting token
 
 ************************************
 If browser page didn't load, go to:
-https://us.etrade.com/e/t/etws/authorize?key=somekeyvalue&token=sometokenvalue%3D
+https://us.etrade.com/e/t/etws/authorize?key=somekeyvalue&token=sometokenvalue
 ************************************
 
 Input verification code:
