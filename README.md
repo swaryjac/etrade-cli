@@ -35,28 +35,31 @@ The `calc put` command searches for put options expiring 'next Friday' (as deter
 $ ./etrade calc put
 Enter stock symbols, separated by ',' ';' ' ' or newlines. Ctrl+d to complete:
 AAOI CDE HL PAAS
-AAOI: 40.0 0.55 .013 4.4396
-CDE: 19.0 0.2 .010 3.46
-HL: 19.5 0.2 .010 3.11
-PAAS: 53.0 0.55 .010 4.77
+
+AAOI  46.00 2.15 0.05  5.49
+CDE   22.50 0.25 0.01  2.16
+HL    22.00 0.32 0.01  2.04
+PAAS  60.00 0.60 0.01  4.60
 ```
 
 Results can be filtered to show only strike prices in a certain range:
 
 ```console
-$ ./etrade calc put -m 15 -M 25
+$ ./etrade calc put -m 40 -M 65
 Enter stock symbols, separated by ',' ';' ' ' or newlines. Ctrl+d to complete:
 AAOI CDE HL PAAS
-CDE: 19.0 0.2 .010 3.46
-HL: 19.5 0.2 .010 3.11
+
+AAOI  46.00 2.15 0.05  5.49
+PAAS  60.00 0.60 0.01  4.60
 ```
 
 And to only show options with spreads above a certain minimum:
 ```console
-$ ./etrade calc put -m 15 -M 25 -d 3.25
+$ ./etrade calc put -m 40 -M 65 -d 5
 Enter stock symbols, separated by ',' ';' ' ' or newlines. Ctrl+d to complete:
 AAOI CDE HL PAAS
-CDE: 19.0 0.2 .010 3.46
+
+AAOI  46.00 2.15 0.05  5.49
 ```
 
 The `-W|--weekly` option will retrieve all equities that have weekly expiring options from https://www.cboe.com/available_weeklys and perform operations for all possible weekly options.
