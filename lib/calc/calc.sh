@@ -102,7 +102,13 @@ function calc_available_puts() {
       continue
     fi
 
-    for i in {0..9}; do
+    num_strikes=$(jq '.OptionChainResponse.OptionPair | length' ${option_file})
+    if ! is_num $num_strikes; then
+      echo "Error getting number of strikes for ${quote_symbol}"
+      continue
+    fi
+
+    for i in $(seq 0 $num_strikes); do
       local strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.strikePrice' ${option_file})
 
       local one_pct_price="$(echo "scale=3; $strike_price * 0.01" | bc)"

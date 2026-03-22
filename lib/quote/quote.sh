@@ -162,7 +162,7 @@ function get_quote_option() {
     return 1
   fi
 
-  local no_strikes=${opt_no_strikes:-20}
+  local no_strikes=${opt_no_strikes:-40}
   if ! is_num "${no_strikes}"; then
     echo "Illegal number of strikes: ${no_strikes}"
     return 1
