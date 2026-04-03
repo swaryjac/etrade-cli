@@ -248,7 +248,7 @@ function get_quote_batch() {
   if $get_for_weekly_equities; then
     local all_symbols=$(get_weekly_options_equity_symbols)
   elif [ -n "${input_file}" ]; then
-    local all_symbols=$(get_all_symbols_from_cache "${input_file}")
+    local all_symbols=$(get_all_symbols_from_file "${input_file}")
   else
     local all_symbols=$(get_all_symbols_from_stdin)
   fi
