@@ -141,7 +141,7 @@ function calc_available_options() {
 
     local seq_args one_pct_price
     if [[ "$option_type" == "Put" ]]; then
-      seq_args="0 $num_strikes"
+      seq_args="0 $((num_strikes - 1))"
     else
       seq_args="$((num_strikes - 1)) -1 0"
       one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
