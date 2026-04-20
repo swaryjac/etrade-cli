@@ -92,6 +92,11 @@ function calc_available_options() {
   local option_type="$1"
   shift
 
+  if [[ "$option_type" != "Put" && "$option_type" != "Call" ]]; then
+    echo "Error: option_type must be 'Put' or 'Call', got '${option_type}'" >&2
+    return 1
+  fi
+
   opt_min_spread=2
   parse_calc_opts "$@"
 
