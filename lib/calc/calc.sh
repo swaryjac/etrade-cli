@@ -88,7 +88,10 @@ function get_price_symbol_pairs() {
   done
 }
 
-function calc_available_puts() {
+function calc_available_options() {
+  local option_type="$1"
+  shift
+
   opt_min_spread=2
   parse_calc_opts "$@"
 
@@ -99,132 +102,92 @@ function calc_available_puts() {
   local readonly max_strike="${opt_max_strike:-10000}"
   local readonly min_spread="${opt_min_spread:-0}"
 
+  local type_lower="${option_type,,}"
   local date_string=$(date +"%Y"-"%m"-"%d")
-  local output_csv_file=onepct_puts${date_string}_${min_strike}-${max_strike}.csv
+  local output_csv_file="onepct_${type_lower}s${date_string}_${min_strike}-${max_strike}.csv"
 
-  echo "SYMBOL,PRICE,STRIKE,PUT_BID,PCT,SPREAD" > ${output_csv_file}
+  echo "SYMBOL,PRICE,STRIKE,${option_type^^}_BID,PCT,SPREAD" > "${output_csv_file}"
 
   local pair stock_price quote_symbol
   for pair in "${price_symbol_pairs[@]}"; do
     IFS=',' read stock_price quote_symbol <<< "${pair}"
 
     local option_file=$(get_option_filename "${quote_symbol}")
-    if ! jq -e 'has("OptionChainResponse")' ${option_file} > /dev/null; then
+    if ! jq -e 'has("OptionChainResponse")' "${option_file}" > /dev/null; then
       echo "No option detected for ${quote_symbol}"
       continue
     fi
 
-    if [ $(echo "$stock_price < $min_strike" | bc -l) -eq 1 ]; then
-      continue
+    if [[ "$option_type" == "Put" ]]; then
+      if [ $(echo "$stock_price < $min_strike" | bc -l) -eq 1 ]; then
+        continue
+      fi
+    else
+      if [ $(echo "$stock_price < $min_strike" | bc -l) -eq 1 ] || \
+         [ $(echo "$stock_price > $max_strike" | bc -l) -eq 1 ]; then
+        continue
+      fi
     fi
 
-    num_strikes=$(jq '.OptionChainResponse.OptionPair | length' ${option_file})
-    if ! is_num $num_strikes; then
+    local num_strikes=$(jq '.OptionChainResponse.OptionPair | length' "${option_file}")
+    if ! is_num "$num_strikes"; then
       echo "Error getting number of strikes for ${quote_symbol}"
       continue
     fi
 
-    for i in $(seq 0 $num_strikes); do
-      local strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.strikePrice' ${option_file})
+    local seq_args one_pct_price
+    if [[ "$option_type" == "Put" ]]; then
+      seq_args="0 $num_strikes"
+    else
+      seq_args="$((num_strikes - 1)) -1 0"
+      one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
+    fi
 
-      local one_pct_price="$(echo "scale=3; $strike_price * 0.01" | bc)"
+    for i in $(seq $seq_args); do
+      local strike_price=$(jq --argjson i "$i" ".OptionChainResponse.OptionPair[$i].${option_type}.strikePrice" "${option_file}")
+      local option_bid=$(jq --argjson i "$i" ".OptionChainResponse.OptionPair[$i].${option_type}.bid" "${option_file}")
 
-      # strike price increases each iteration, if it's larger than max conditions, quit loop
-      if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ] || \
-         [ $(echo "$strike_price > $max_strike" | bc -l) -eq 1 ]; then
-        break
-      elif [ $(echo "$strike_price < $min_strike" | bc -l) -eq 1 ]; then
-        # don't perform calculations if strike price is below minimum
-        continue
+      local price_spread pct_basis
+      if [[ "$option_type" == "Put" ]]; then
+        one_pct_price="$(echo "scale=3; $strike_price * 0.01" | bc)"
+        if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ] || \
+           [ $(echo "$strike_price > $max_strike" | bc -l) -eq 1 ]; then
+          break
+        elif [ $(echo "$strike_price < $min_strike" | bc -l) -eq 1 ]; then
+          continue
+        fi
+        price_spread="$(echo "$stock_price - $strike_price" | bc)"
+        pct_basis="$strike_price"
+      else
+        if [ $(echo "$strike_price <= $stock_price" | bc -l) -eq 1 ]; then
+          break
+        fi
+        price_spread="$(echo "$strike_price - $stock_price" | bc)"
+        pct_basis="$stock_price"
       fi
 
-      local price_spread="$(echo "$stock_price - $strike_price" | bc)"
       if [ $(echo "$price_spread < $min_spread" | bc -l) -eq 1 ]; then
-        # spread decreases each iteration, quit loop if it's less than min condition
         break
       fi
 
-      local put_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Put.bid' ${option_file})
-
-      if [ $(echo "$put_price >= $one_pct_price" | bc -l) -eq 1 ]; then
-        local put_pct="$(echo "scale=3; $put_price / $strike_price" | bc)"
+      if [ $(echo "$option_bid >= $one_pct_price" | bc -l) -eq 1 ]; then
+        local opt_pct="$(echo "scale=3; $option_bid / $pct_basis" | bc)"
         printf "%-5s %5.2f %4.2f %4.2f %5.2f\n" \
-                 "${quote_symbol}" "$strike_price" "$put_price" "$put_pct" "$price_spread"
-        echo "${quote_symbol},${stock_price},${strike_price},${put_price},${put_pct},${price_spread}" \
-               >> $output_csv_file
-        break;
+               "${quote_symbol}" "$strike_price" "$option_bid" "$opt_pct" "$price_spread"
+        echo "${quote_symbol},${stock_price},${strike_price},${option_bid},${opt_pct},${price_spread}" \
+             >> "${output_csv_file}"
+        break
       fi
     done
-
   done
 }
 
+function calc_available_puts() {
+  calc_available_options "Put" "$@"
+}
+
 function calc_available_calls() {
-  opt_min_spread=2
-  parse_calc_opts "$@"
-
-  declare -a price_symbol_pairs
-  get_price_symbol_pairs price_symbol_pairs
-
-  local readonly min_price="${opt_min_strike:-0}"
-  local readonly max_price="${opt_max_strike:-10000}"
-  local readonly min_spread="${opt_min_spread:-0}"
-
-  local date_string=$(date +"%Y"-"%m"-"%d")
-  local output_csv_file=onepct_calls${date_string}_${min_price}-${max_price}.csv
-
-  echo "SYMBOL,PRICE,STRIKE,CALL_BID,PCT,SPREAD" > ${output_csv_file}
-
-  local pair stock_price quote_symbol
-
-  for pair in "${price_symbol_pairs[@]}"; do
-    IFS=',' read stock_price quote_symbol <<< "${pair}"
-
-    local option_file=$(get_option_filename "${quote_symbol}")
-    if ! jq -e 'has("OptionChainResponse")' ${option_file} > /dev/null; then
-      echo "No option detected for ${quote_symbol}"
-      continue
-    fi
-
-    if [ $(echo "$stock_price < $min_price" | bc -l) -eq 1 ] ||
-       [ $(echo "$stock_price > $max_price" | bc -l) -eq 1 ]; then
-      continue
-    fi
-
-    num_strikes=$(jq '.OptionChainResponse.OptionPair | length' ${option_file})
-    if ! is_num $num_strikes; then
-      echo "Error getting number of strikes for ${quote_symbol}"
-      continue
-    fi
-
-    local one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
-
-    for i in $(seq $((num_strikes - 1)) -1 0); do
-      local strike_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Call.strikePrice' ${option_file})
-
-      # strike price decreases each iteration, quit before calculating 'in the money' calls
-      if [ $(echo "$strike_price <= $stock_price" | bc -l) -eq 1 ]; then
-        break
-      fi
-
-      local price_spread="$(echo "$strike_price - $stock_price" | bc)"
-      if [ $(echo "$price_spread < $min_spread" | bc -l) -eq 1 ]; then
-        # spread decreases each iteration, quit loop if it's less than min condition
-        break
-      fi
-
-      local call_price=$(jq --argjson i "$i" '.OptionChainResponse.OptionPair.[$i].Call.bid' ${option_file})
-
-      if [ $(echo "$call_price >= $one_pct_price" | bc -l) -eq 1 ]; then
-        local call_pct="$(echo "scale=3; $call_price / $stock_price" | bc)"
-        printf "%-5s %5.2f %4.2f %4.2f %5.2f\n" \
-                 "${quote_symbol}" "$strike_price" "$call_price" "$call_pct" "$price_spread"
-        echo "${quote_symbol},${stock_price},${strike_price},${call_price},${call_pct},${price_spread}" \
-               >> $output_csv_file
-        break;
-      fi
-    done
-  done
+  calc_available_options "Call" "$@"
 }
 
 call_and_put_diff() {
