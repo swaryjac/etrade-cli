@@ -1,0 +1,1 @@
+{"QuoteResponse":{"QuoteData":[{"dateTime":"17:18:22 EDT 04-17-2026","dateTimeUTC":1776460702,"quoteStatus":"CLOSING","ahFlag":"true","hasMiniOptions":false,"Fundamental":{"companyName":"OKLO INC COM CL A","eps":0.0,"estEarnings":-0.785,"high52":0.0,"lastTrade":66.7,"low52":0.0,"symbolDescription":"OKLO INC COM CL A"},"Product":{"symbol":"OKLO","securityType":"EQ"}}]}}

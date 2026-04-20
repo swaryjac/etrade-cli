@@ -89,7 +89,7 @@ function get_quote() {
 
   if ! jq -e 'has("QuoteResponse")' > /dev/null <<< "${quote_text}"; then
     echo "Failed retrieving price: ${quote_symbol}"
-    exit 1
+    return 1
   fi
   if $write_to_cache; then
     echo "${quote_text}" > "${quote_file}"
@@ -264,8 +264,9 @@ function get_quote_batch() {
     for i in $(seq 1 ${num_attempts}); do
       if ! get_quote -w ${symbol}; then
         echo "Attempt $i Quote for '${symbol}' failed"
+        sleep $((2 ** (i - 1)))
       else
-        break;
+        break
       fi
     done
 
@@ -277,8 +278,9 @@ function get_quote_batch() {
       for i in $(seq 1 ${num_attempts}); do
         if ! get_quote_option -w -s "${stock_price}" ${symbol}; then
           echo "Attempt $i Option for '${symbol}' failed"
+          sleep $((2 ** (i - 1)))
         else
-          break;
+          break
         fi
       done
     fi

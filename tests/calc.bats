@@ -1,0 +1,125 @@
+#!/usr/bin/env bats
+
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+FIXTURES_DIR="$REPO_ROOT/tests/fixtures"
+
+setup() {
+  command -v bc &>/dev/null || skip "bc is required but not installed (sudo pacman -S bc)"
+
+  export PARENT_PATH="$REPO_ROOT"
+  export CACHE_DIR="$FIXTURES_DIR"
+
+  source "$PARENT_PATH/lib/common/validation.sh"
+  source "$PARENT_PATH/lib/quote/quote.sh"
+  source "$PARENT_PATH/lib/calc/calc.sh"
+
+  cd "$BATS_TEST_TMPDIR"
+}
+
+write_symbols_file() {
+  printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/symbols.txt"
+}
+
+get_csv_file() {
+  ls *.csv 2>/dev/null | head -1
+}
+
+# ─── Put tests ────────────────────────────────────────────────────────────────
+
+# Fixture data summary (puts, effective min_spread=0):
+#   PLTR: stock=146.45, qualifying strike=141.0, bid=1.65, spread=5.45
+#   OKLO: stock=66.70,  qualifying strike=58.0,  bid=0.69, spread=8.70
+#   BSX:  stock=64.50,  qualifying strike=63.0,  bid=1.05, spread=1.50
+#   CHWY: stock=27.49,  qualifying strike=27.0,  bid=0.37, spread=0.49
+#   PLUG: stock=2.77,   no qualifying strike (bids below 1% of strike)
+#   FAKE: synthetic,    no qualifying strike (all bids set to $0.01)
+
+@test "calc put: qualifying symbol appears in CSV (PLTR)" {
+  write_symbols_file "PLTR"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^PLTR," "$(get_csv_file)"
+}
+
+@test "calc put: non-qualifying symbol produces header-only CSV (PLUG)" {
+  write_symbols_file "PLUG"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  [ "$(wc -l < "$(get_csv_file)")" -eq 1 ]
+}
+
+@test "calc put: multiple symbols, only qualifying ones appear in CSV" {
+  write_symbols_file "PLTR" "PLUG" "OKLO"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  grep -q "^PLTR," "$csv"
+  grep -q "^OKLO," "$csv"
+  ! grep -q "^PLUG," "$csv"
+}
+
+@test "calc put: --spread filter excludes symbols below minimum spread" {
+  # PLTR spread=5.45 and OKLO spread=8.70, both below --spread 10
+  write_symbols_file "PLTR" "OKLO"
+  calc_available_puts --spread 10 -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  ! grep -q "^PLTR," "$csv"
+  ! grep -q "^OKLO," "$csv"
+}
+
+@test "calc put: --min-strike filter excludes stocks priced below minimum" {
+  # LUNR stock=27.5 is below --min-strike 50, PLTR stock=146.45 is above
+  write_symbols_file "LUNR" "PLTR"
+  calc_available_puts --min-strike 50 -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  ! grep -q "^LUNR," "$csv"
+  grep -q "^PLTR," "$csv"
+}
+
+@test "calc put: CSV has correct header" {
+  write_symbols_file "PLTR"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  head -1 "$(get_csv_file)" | grep -q "^SYMBOL,PRICE,STRIKE,PUT_BID,PCT,SPREAD$"
+}
+
+# ─── Call tests ───────────────────────────────────────────────────────────────
+
+# Fixture data summary (calls, effective min_spread=0):
+#   PLTR: stock=146.45, qualifying strike=152.5, bid=1.52, spread=6.05
+#   OKLO: stock=66.70,  qualifying strike=80.0,  bid=0.71, spread=13.30
+#   BSX:  stock=64.50,  qualifying strike=66.0,  bid=1.25, spread=1.50
+#   CHWY: stock=27.49,  qualifying strike=28.0,  bid=0.40, spread=0.51
+#   FAKE: synthetic,    no qualifying strike (all bids set to $0.01)
+
+@test "calc call: qualifying symbol appears in CSV (PLTR)" {
+  write_symbols_file "PLTR"
+  calc_available_calls -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^PLTR," "$(get_csv_file)"
+}
+
+@test "calc call: non-qualifying symbol produces header-only CSV (FAKE)" {
+  write_symbols_file "FAKE"
+  calc_available_calls -i "$BATS_TEST_TMPDIR/symbols.txt"
+  [ "$(wc -l < "$(get_csv_file)")" -eq 1 ]
+}
+
+@test "calc call: multiple symbols, only qualifying ones appear in CSV" {
+  write_symbols_file "PLTR" "FAKE" "OKLO"
+  calc_available_calls -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  grep -q "^PLTR," "$csv"
+  grep -q "^OKLO," "$csv"
+  ! grep -q "^FAKE," "$csv"
+}
+
+@test "calc call: --spread filter excludes symbols below minimum spread" {
+  # PLTR spread=6.05 excluded, OKLO spread=13.30 included with --spread 10
+  write_symbols_file "PLTR" "OKLO"
+  calc_available_calls --spread 10 -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  ! grep -q "^PLTR," "$csv"
+  grep -q "^OKLO," "$csv"
+}
+
+@test "calc call: CSV has correct header" {
+  write_symbols_file "PLTR"
+  calc_available_calls -i "$BATS_TEST_TMPDIR/symbols.txt"
+  head -1 "$(get_csv_file)" | grep -q "^SYMBOL,PRICE,STRIKE,CALL_BID,PCT,SPREAD$"
+}

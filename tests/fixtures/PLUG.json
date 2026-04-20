@@ -1,0 +1,1 @@
+{"QuoteResponse":{"QuoteData":[{"dateTime":"17:18:40 EDT 04-17-2026","dateTimeUTC":1776460720,"quoteStatus":"CLOSING","ahFlag":"true","hasMiniOptions":false,"Fundamental":{"companyName":"PLUG PWR INC COM NEW","eps":0.0,"estEarnings":-0.302,"high52":0.0,"lastTrade":2.77,"low52":0.0,"symbolDescription":"PLUG PWR INC COM NEW"},"Product":{"symbol":"PLUG","securityType":"EQ"}}]}}

@@ -17,7 +17,22 @@ function help_main() {
   usage_main
 }
 
+function check_dependencies() {
+  local missing=()
+  for cmd in curl jq openssl bc secret-tool; do
+    if ! command -v "$cmd" &> /dev/null; then
+      missing+=("$cmd")
+    fi
+  done
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "Error: missing required dependencies: ${missing[*]}" >&2
+    exit 1
+  fi
+}
+
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
+
+check_dependencies
 
 source "$PARENT_PATH/lib/common/settings.sh"
 source "$PARENT_PATH/lib/common/http_defns.sh"
