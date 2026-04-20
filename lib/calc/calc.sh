@@ -227,12 +227,53 @@ function calc_available_calls() {
   done
 }
 
+call_and_put_diff() {
+  local call_file="$1"
+  local put_file="$2"
+
+  if ! [ -f "$call_file" ] || ! [ -f "$put_file" ]; then
+    echo "file not found"
+    return 1
+  fi
+
+  local all_calls=$(cat "$call_file")
+  local all_puts=$(cat "$put_file")
+
+  local date_string=$(date +"%Y"-"%m"-"%d")
+  local output_csv_file=diff${date_string}.csv
+
+  echo "SYMBOL,Stock Price,Call Spread, Put Spread,Diff" > $output_csv_file
+
+  for call_line in $all_calls; do
+    local call_symbol=$(echo "$call_line" | awk -F , '{print $1}')
+    if [[ "$call_symbol" == "SYMBOL" ]]; then
+      continue
+    fi
+    local stock_price=$(echo "$call_line" | awk -F , '{print $2}')
+    local call_spread=$(echo "$call_line" | awk -F , '{print $6}')
+    local put_spread="NA"
+    local diff=0
+    # echo "$call_symbol - $call_spread"
+    for put_line in $all_puts; do
+      local put_symbol=$(echo "$put_line" | awk -F , '{print $1}')
+      if [[ "$call_symbol" != "$put_symbol" ]]; then
+        continue
+      fi
+      put_spread=$(echo "$put_line" | awk -F , '{print $6}')
+      # echo "$put_symbol - $put_spread"
+      local diff="$(echo "$call_spread - $put_spread" | bc -l)"
+    done
+    echo "$call_symbol,$stock_price,$call_spread,$put_spread,$diff" >> $output_csv_file
+  done
+}
+
 function usage_calc() {
-  subcmd_len=3
+  subcmd_len=4
   sec_line_indent=$((subcmd_len + 3))
   printf "Usage:\n"
   printf "\tetrade calc {-h --help}\n"
-  printf "\tetrade calc [subcommand] [options]\n\n"
+  printf "\tetrade calc [put | call] [options]\n"
+  printf "\tetrade calc diff call_csv_filename put_csv_filename\n\n"
   printf "Subcommand:\n"
   printf "\t%-${subcmd_len}s - %s\n" "put" \
            "Calculates the percentage of strike price, based on available Bid, for the given stocks"
@@ -244,6 +285,20 @@ function usage_calc() {
            "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline. Use option"
   printf "\t%${sec_line_indent}s%s\n" " " \
            "-W, -i, or -r to specify by other means"
+  printf "\t%-${subcmd_len}s - %s\n" "call" \
+           "Calculates the percentage of stock price, based on available Bid per strike, for the given"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "stocks and collects the information for calls available above 1% of the stock."
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Only provides the strike with maximum spread from the stock's lastPrice value for any given stock."
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline. Use option"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "-W, -i, or -r to specify by other means"
+  printf "\t%-${subcmd_len}s - %s\n" "diff" \
+           "Calculates the difference in spread between call and put given files produced by the 'calc' 'put'"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "and 'call' subcommands."
   printf "\n"
   printf "Options:\n"
   option_title_len=19
@@ -294,6 +349,10 @@ function execute_calc() {
     call)
       shift
       calc_available_calls "$@"
+      ;;
+    diff)
+      shift
+      call_and_put_diff "$@"
       ;;
     -h|--help)
       help_calc
