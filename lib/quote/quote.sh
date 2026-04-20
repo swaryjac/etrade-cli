@@ -89,7 +89,7 @@ function get_quote() {
 
   if ! jq -e 'has("QuoteResponse")' > /dev/null <<< "${quote_text}"; then
     echo "Failed retrieving price: ${quote_symbol}"
-    exit 1
+    return 1
   fi
   if $write_to_cache; then
     echo "${quote_text}" > "${quote_file}"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function is_ticker_symbol_valid() {
-  if [ -n $1 ] && [[ "$1" =~ [A-Z]{1,5} ]]; then
+  if [ -n "$1" ] && [[ "$1" =~ ^[A-Z]{1,5}$ ]]; then
     return 0
   fi
   return 1

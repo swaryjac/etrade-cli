@@ -149,7 +149,7 @@ function get_new_authorization() {
   echo "" > /dev/tty
 
   read -p "Input verification code: " verification_code
-  if [ -z verification_code ]; then
+  if [ -z "$verification_code" ]; then
     echo "no code entered"
     return 1
   fi
