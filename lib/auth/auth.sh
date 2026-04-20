@@ -127,8 +127,8 @@ function get_new_authorization() {
     local encoded_request_token="${BASH_REMATCH[1]}"
     local encoded_request_secret="${BASH_REMATCH[2]}"
   else
-    echo "${request_token_response}" > request_response.txt
-    echo "response parsing failed, output in request_response.txt"
+    echo "response parsing failed:" >&2
+    echo "${request_token_response}" >&2
     return 1
   fi
 
