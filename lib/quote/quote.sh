@@ -264,8 +264,9 @@ function get_quote_batch() {
     for i in $(seq 1 ${num_attempts}); do
       if ! get_quote -w ${symbol}; then
         echo "Attempt $i Quote for '${symbol}' failed"
+        sleep $((2 ** (i - 1)))
       else
-        break;
+        break
       fi
     done
 
@@ -277,8 +278,9 @@ function get_quote_batch() {
       for i in $(seq 1 ${num_attempts}); do
         if ! get_quote_option -w -s "${stock_price}" ${symbol}; then
           echo "Attempt $i Option for '${symbol}' failed"
+          sleep $((2 ** (i - 1)))
         else
-          break;
+          break
         fi
       done
     fi
