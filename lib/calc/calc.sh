@@ -19,18 +19,27 @@ function parse_calc_opts() {
       -m|--min-strike)
         if is_num "$2"; then
           opt_min_strike="$2"
+        else
+          echo "Invalid value for --min-strike: '$2'" >&2
+          return 1
         fi
         shift 2
         ;;
       -M|--max-strike)
         if is_num "$2"; then
           opt_max_strike="$2"
+        else
+          echo "Invalid value for --max-strike: '$2'" >&2
+          return 1
         fi
         shift 2
         ;;
       -d|--spread)
         if is_num "$2"; then
           opt_min_spread="$2"
+        else
+          echo "Invalid value for --spread: '$2'" >&2
+          return 1
         fi
         shift 2
         ;;
@@ -97,7 +106,6 @@ function calc_available_options() {
     return 1
   fi
 
-  opt_min_spread=2
   parse_calc_opts "$@"
 
   declare -a price_symbol_pairs
@@ -142,7 +150,7 @@ function calc_available_options() {
 
     local seq_args one_pct_price
     if [[ "$option_type" == "Put" ]]; then
-      seq_args="0 $num_strikes"
+      seq_args="0 $((num_strikes - 1))"
     else
       seq_args="$((num_strikes - 1)) -1 0"
       one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
@@ -151,6 +159,11 @@ function calc_available_options() {
     for i in $(seq $seq_args); do
       local strike_price=$(jq --argjson i "$i" ".OptionChainResponse.OptionPair[$i].${option_type}.strikePrice" "${option_file}")
       local option_bid=$(jq --argjson i "$i" ".OptionChainResponse.OptionPair[$i].${option_type}.bid" "${option_file}")
+
+      if [[ "$strike_price" == "null" || "$option_bid" == "null" ]]; then
+        echo "Warning: missing ${option_type} data at index $i for ${quote_symbol}, skipping" >&2
+        continue
+      fi
 
       local price_spread pct_basis
       if [[ "$option_type" == "Put" ]]; then
@@ -210,7 +223,7 @@ call_and_put_diff() {
   local date_string=$(date +"%Y"-"%m"-"%d")
   local output_csv_file=diff${date_string}.csv
 
-  echo "SYMBOL,Stock Price,Call Spread, Put Spread,Diff" > $output_csv_file
+  echo "SYMBOL,Stock Price,Call Spread, Put Spread,Diff" > "${output_csv_file}"
 
   for call_line in $all_calls; do
     local call_symbol=$(echo "$call_line" | awk -F , '{print $1}')
@@ -221,17 +234,15 @@ call_and_put_diff() {
     local call_spread=$(echo "$call_line" | awk -F , '{print $6}')
     local put_spread="NA"
     local diff=0
-    # echo "$call_symbol - $call_spread"
     for put_line in $all_puts; do
       local put_symbol=$(echo "$put_line" | awk -F , '{print $1}')
       if [[ "$call_symbol" != "$put_symbol" ]]; then
         continue
       fi
       put_spread=$(echo "$put_line" | awk -F , '{print $6}')
-      # echo "$put_symbol - $put_spread"
       local diff="$(echo "$call_spread - $put_spread" | bc -l)"
     done
-    echo "$call_symbol,$stock_price,$call_spread,$put_spread,$diff" >> $output_csv_file
+    echo "$call_symbol,$stock_price,$call_spread,$put_spread,$diff" >> "${output_csv_file}"
   done
 }
 
