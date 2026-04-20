@@ -160,6 +160,11 @@ function calc_available_options() {
       local strike_price=$(jq --argjson i "$i" ".OptionChainResponse.OptionPair[$i].${option_type}.strikePrice" "${option_file}")
       local option_bid=$(jq --argjson i "$i" ".OptionChainResponse.OptionPair[$i].${option_type}.bid" "${option_file}")
 
+      if [[ "$strike_price" == "null" || "$option_bid" == "null" ]]; then
+        echo "Warning: missing ${option_type} data at index $i for ${quote_symbol}, skipping" >&2
+        continue
+      fi
+
       local price_spread pct_basis
       if [[ "$option_type" == "Put" ]]; then
         one_pct_price="$(echo "scale=3; $strike_price * 0.01" | bc)"
