@@ -97,7 +97,6 @@ function calc_available_options() {
     return 1
   fi
 
-  opt_min_spread=2
   parse_calc_opts "$@"
 
   declare -a price_symbol_pairs
