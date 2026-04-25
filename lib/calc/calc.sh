@@ -1,5 +1,13 @@
 #!/bin/bash
 
+function get_options_csv_filename() {
+  local type_lower="$1"
+  local min_strike="${2:-0}"
+  local max_strike="${3:-10000}"
+  local date_string=$(date +"%Y"-"%m"-"%d")
+  echo "onepct_${type_lower}s${date_string}_${min_strike}-${max_strike}.csv"
+}
+
 function parse_calc_opts() {
   local OPTS=$(getopt -o m:M:d:Wi:r --long min-strike:,max-strike:,spread:,weekly,input:,read-cache -- "$@")
   if [[ $? != 0 ]]; then
@@ -106,8 +114,6 @@ function calc_available_options() {
     return 1
   fi
 
-  parse_calc_opts "$@"
-
   declare -a price_symbol_pairs
   get_price_symbol_pairs price_symbol_pairs
 
@@ -116,8 +122,7 @@ function calc_available_options() {
   local readonly min_spread="${opt_min_spread:-0}"
 
   local type_lower="${option_type,,}"
-  local date_string=$(date +"%Y"-"%m"-"%d")
-  local output_csv_file="onepct_${type_lower}s${date_string}_${min_strike}-${max_strike}.csv"
+  local output_csv_file=$(get_options_csv_filename "${type_lower}" "${min_strike}" "${max_strike}")
 
   echo "SYMBOL,PRICE,STRIKE,${option_type^^}_BID,PCT,SPREAD" > "${output_csv_file}"
 
@@ -201,11 +206,24 @@ function calc_available_options() {
 }
 
 function calc_available_puts() {
-  calc_available_options "Put" "$@"
+  parse_calc_opts "$@" && calc_available_options "Put"
 }
 
 function calc_available_calls() {
-  calc_available_options "Call" "$@"
+  parse_calc_opts "$@" && calc_available_options "Call"
+}
+
+function calc_skew() {
+  parse_calc_opts "$@" || return 1
+
+  local min_strike="${opt_min_strike:-0}"
+  local max_strike="${opt_max_strike:-10000}"
+  local put_csv=$(get_options_csv_filename "puts" "${min_strike}" "${max_strike}")
+  local call_csv=$(get_options_csv_filename "calls" "${min_strike}" "${max_strike}")
+
+  calc_available_options "Put" && \
+  calc_available_options "Call" && \
+  call_and_put_diff "${call_csv}" "${put_csv}"
 }
 
 call_and_put_diff() {
@@ -251,7 +269,7 @@ function usage_calc() {
   sec_line_indent=$((subcmd_len + 3))
   printf "Usage:\n"
   printf "\tetrade calc {-h --help}\n"
-  printf "\tetrade calc [put | call] [options]\n"
+  printf "\tetrade calc [put | call | skew] [options]\n"
   printf "\tetrade calc diff call_csv_filename put_csv_filename\n\n"
   printf "Subcommand:\n"
   printf "\t%-${subcmd_len}s - %s\n" "put" \
@@ -274,6 +292,10 @@ function usage_calc() {
            "By default accepts symbols via stdin, separated by ' ', ',', ';', or newline. Use option"
   printf "\t%${sec_line_indent}s%s\n" " " \
            "-W, -i, or -r to specify by other means"
+  printf "\t%-${subcmd_len}s - %s\n" "skew" \
+           "Runs 'put', 'call', and 'diff' in sequence with the same options, producing all three output"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "files in one command. Accepts the same options as 'put' and 'call'."
   printf "\t%-${subcmd_len}s - %s\n" "diff" \
            "Calculates the difference in spread between call and put given files produced by the 'calc' 'put'"
   printf "\t%${sec_line_indent}s%s\n" " " \
@@ -328,6 +350,10 @@ function execute_calc() {
     call)
       shift
       calc_available_calls "$@"
+      ;;
+    skew)
+      shift
+      calc_skew "$@"
       ;;
     diff)
       shift
