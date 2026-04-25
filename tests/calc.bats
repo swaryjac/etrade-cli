@@ -123,3 +123,49 @@ get_csv_file() {
   calc_available_calls -i "$BATS_TEST_TMPDIR/symbols.txt"
   head -1 "$(get_csv_file)" | grep -q "^SYMBOL,PRICE,STRIKE,CALL_BID,PCT,SPREAD$"
 }
+
+# ─── Skew tests ───────────────────────────────────────────────────────────────
+
+# Fixture data summary (skew = call_spread - put_spread):
+#   PLTR: put_spread=5.45, call_spread=6.05 → diff=0.60
+#   OKLO: put_spread=8.70, call_spread=13.30 → diff=4.60
+
+get_diff_csv_file() {
+  ls diff*.csv 2>/dev/null | head -1
+}
+
+@test "calc skew: produces put, call, and diff CSV files" {
+  write_symbols_file "PLTR"
+  calc_skew -i "$BATS_TEST_TMPDIR/symbols.txt"
+  ls onepct_puts*.csv >/dev/null 2>&1
+  ls onepct_calls*.csv >/dev/null 2>&1
+  ls diff*.csv >/dev/null 2>&1
+}
+
+@test "calc skew: diff CSV has correct header" {
+  write_symbols_file "PLTR"
+  calc_skew -i "$BATS_TEST_TMPDIR/symbols.txt"
+  head -1 "$(get_diff_csv_file)" | grep -q "^SYMBOL,Stock Price,Call Spread, Put Spread,Diff$"
+}
+
+@test "calc skew: diff CSV contains qualifying symbol (PLTR)" {
+  write_symbols_file "PLTR"
+  calc_skew -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^PLTR," "$(get_diff_csv_file)"
+}
+
+@test "calc skew: diff CSV omits symbol qualifying for call but not put (FAKE)" {
+  # FAKE has no qualifying strikes for either put or call, so it should not appear in diff
+  write_symbols_file "FAKE"
+  calc_skew -i "$BATS_TEST_TMPDIR/symbols.txt"
+  ! grep -q "^FAKE," "$(get_diff_csv_file)"
+}
+
+@test "calc skew: --spread option propagates to both put and call" {
+  # PLTR put_spread=5.45 and call_spread=6.05 both excluded with --spread 10
+  write_symbols_file "PLTR" "OKLO"
+  calc_skew --spread 10 -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local diff_csv="$(get_diff_csv_file)"
+  ! grep -q "^PLTR," "$diff_csv"
+  grep -q "^OKLO," "$diff_csv"
+}

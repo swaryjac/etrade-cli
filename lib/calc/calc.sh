@@ -218,8 +218,8 @@ function calc_skew() {
 
   local min_strike="${opt_min_strike:-0}"
   local max_strike="${opt_max_strike:-10000}"
-  local put_csv=$(get_options_csv_filename "puts" "${min_strike}" "${max_strike}")
-  local call_csv=$(get_options_csv_filename "calls" "${min_strike}" "${max_strike}")
+  local put_csv=$(get_options_csv_filename "put" "${min_strike}" "${max_strike}")
+  local call_csv=$(get_options_csv_filename "call" "${min_strike}" "${max_strike}")
 
   calc_available_options "Put" && \
   calc_available_options "Call" && \
