@@ -79,9 +79,10 @@ function cmd_settings_set() {
 }
 
 function cmd_settings_list() {
+  local -a col_keys=() col_values=() col_defaults=() col_notes=()
+  local w_key=3 w_value=5 w_default=7  # minimum widths match header labels
+
   local key value default effective note
-  printf "%-30s %-25s %-12s %s\n" "KEY" "VALUE" "DEFAULT" "NOTE"
-  printf "%-30s %-25s %-12s %s\n" "---" "-----" "-------" "----"
   for key in "${VALID_SETTING_KEYS[@]}"; do
     default="$(_get_setting_default "${key}")"
     if value=$(get_setting "${key}"); then
@@ -91,7 +92,21 @@ function cmd_settings_list() {
       effective="${default}"
     fi
     note="$(_get_setting_note "${key}" "${effective}")"
-    printf "%-30s %-25s %-12s %s\n" "${key}" "${value}" "${default}" "${note}"
+    col_keys+=("${key}")
+    col_values+=("${value}")
+    col_defaults+=("${default}")
+    col_notes+=("${note}")
+    [ ${#key}     -gt ${w_key}     ] && w_key=${#key}
+    [ ${#value}   -gt ${w_value}   ] && w_value=${#value}
+    [ ${#default} -gt ${w_default} ] && w_default=${#default}
+  done
+
+  local fmt="%-${w_key}s  %-${w_value}s  %-${w_default}s  %s\n"
+  printf "${fmt}" "KEY" "VALUE" "DEFAULT" "NOTE"
+  printf "${fmt}" "---" "-----" "-------" "----"
+  local i
+  for i in "${!col_keys[@]}"; do
+    printf "${fmt}" "${col_keys[$i]}" "${col_values[$i]}" "${col_defaults[$i]}" "${col_notes[$i]}"
   done
 }
 
