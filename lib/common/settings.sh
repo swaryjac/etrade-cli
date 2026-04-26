@@ -31,4 +31,9 @@ function set_setting() {
 function load_settings() {
   CACHE_DIR=$(get_setting "directories.cache_dir") || CACHE_DIR="${DEFAULT_CACHE_DIR}"
   export CACHE_DIR
+
+  local val
+  if val=$(get_setting "calc.min_strike"); then export CALC_MIN_STRIKE="${val}"; fi
+  if val=$(get_setting "calc.max_strike"); then export CALC_MAX_STRIKE="${val}"; fi
+  if val=$(get_setting "calc.min_spread"); then export CALC_MIN_SPREAD="${val}"; fi
 }

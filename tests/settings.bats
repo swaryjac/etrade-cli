@@ -89,6 +89,29 @@ setup() {
   [ "${CACHE_DIR}" = "/tmp/custom_quotes" ]
 }
 
+@test "load_settings: exports CALC_MIN_STRIKE when configured" {
+  set_setting "calc.min_strike" "50"
+  load_settings
+  [ "${CALC_MIN_STRIKE}" = "50" ]
+}
+
+@test "load_settings: exports CALC_MAX_STRIKE when configured" {
+  set_setting "calc.max_strike" "200"
+  load_settings
+  [ "${CALC_MAX_STRIKE}" = "200" ]
+}
+
+@test "load_settings: exports CALC_MIN_SPREAD when configured" {
+  set_setting "calc.min_spread" "5"
+  load_settings
+  [ "${CALC_MIN_SPREAD}" = "5" ]
+}
+
+@test "load_settings: does not set CALC_MIN_STRIKE when not configured" {
+  load_settings
+  [ -z "${CALC_MIN_STRIKE}" ]
+}
+
 # ─── settings command: get ────────────────────────────────────────────────────
 
 @test "settings get: prints value for a configured key" {

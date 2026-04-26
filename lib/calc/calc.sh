@@ -111,9 +111,9 @@ function calc_available_options() {
   declare -a price_symbol_pairs
   get_price_symbol_pairs price_symbol_pairs
 
-  local readonly min_strike="${opt_min_strike:-0}"
-  local readonly max_strike="${opt_max_strike:-10000}"
-  local readonly min_spread="${opt_min_spread:-0}"
+  local readonly min_strike="${opt_min_strike:-${CALC_MIN_STRIKE:-0}}"
+  local readonly max_strike="${opt_max_strike:-${CALC_MAX_STRIKE:-10000}}"
+  local readonly min_spread="${opt_min_spread:-${CALC_MIN_SPREAD:-0}}"
 
   local type_lower="${option_type,,}"
   local date_string=$(date +"%Y"-"%m"-"%d")

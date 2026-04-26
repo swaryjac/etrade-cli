@@ -79,6 +79,40 @@ get_csv_file() {
   head -1 "$(get_csv_file)" | grep -q "^SYMBOL,PRICE,STRIKE,PUT_BID,PCT,SPREAD$"
 }
 
+# ─── Settings-based defaults ──────────────────────────────────────────────────
+
+@test "calc put: CALC_MIN_SPREAD setting filters without --spread flag" {
+  export CALC_MIN_SPREAD=10
+  write_symbols_file "PLTR" "OKLO"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  ! grep -q "^PLTR," "$csv"
+  ! grep -q "^OKLO," "$csv"
+}
+
+@test "calc put: --spread flag overrides CALC_MIN_SPREAD setting" {
+  export CALC_MIN_SPREAD=10
+  write_symbols_file "PLTR"
+  calc_available_puts --spread 0 -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^PLTR," "$(get_csv_file)"
+}
+
+@test "calc put: CALC_MIN_STRIKE setting filters without --min-strike flag" {
+  export CALC_MIN_STRIKE=50
+  write_symbols_file "LUNR" "PLTR"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  local csv="$(get_csv_file)"
+  ! grep -q "^LUNR," "$csv"
+  grep -q "^PLTR," "$csv"
+}
+
+@test "calc put: --min-strike flag overrides CALC_MIN_STRIKE setting" {
+  export CALC_MIN_STRIKE=50
+  write_symbols_file "LUNR"
+  calc_available_puts --min-strike 0 -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^LUNR," "$(get_csv_file)"
+}
+
 # ─── Call tests ───────────────────────────────────────────────────────────────
 
 # Fixture data summary (calls, effective min_spread=0):
