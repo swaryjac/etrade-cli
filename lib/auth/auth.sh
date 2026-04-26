@@ -9,14 +9,7 @@ oauth_access_url="https://api.etrade.com/oauth/access_token"
 oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
 
 function authorized_in_last_hour() {
-  if [ -n "${time_last_auth}" ] && is_num "${time_last_auth}"; then
-    local time_now=$(date +%s)
-    local one_hour_ago=$(date -d '1 hour ago' +%s)
-    if (( time_last_auth < time_now )) && (( time_last_auth > one_hour_ago )); then
-      return 0
-    fi
-  fi
-  return 1
+  get_auth_time > /dev/null 2>&1
 }
 
 function is_authorization_valid() {
@@ -48,7 +41,7 @@ function is_authorization_valid() {
     send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
   )"
   if [[ $? == 0 ]] && echo "${quote_response}" | jq -e 'has("QuoteResponse")' &> /dev/null ; then
-    set_persistent_value "time_last_auth" "$(date +%s)"
+    set_auth_time
     return 0
   elif [[ "${quote_response}" == *"token_rejected"* ]]; then
     return 10
@@ -96,8 +89,8 @@ function renew_auth_token() {
   )
 
   if [[ $? == 0 && "${renew_response}" == *"renewed"* ]]; then
-    set_persistent_value "time_last_auth" "$(date +%s)"
-    echo "Authorization renewed at $(date -d @${time_last_auth})"
+    set_auth_time
+    echo "Authorization renewed at $(date -d @"$(get_auth_time)")"
     return 0
   fi
   echo "Renewal failed!"
@@ -174,7 +167,7 @@ function get_new_authorization() {
 
   retrieve_auth_keys
 
-  set_persistent_value "time_last_auth" "$(date +%s)"
+  set_auth_time
   return 0
 }
 
@@ -183,10 +176,10 @@ function has_or_get_authorization() {
     echo "Error, need permanent api key"
     return 1
   elif authorized_in_last_hour && retrieve_auth_keys; then
-    echo "Authorization valid as of $(date -d @${time_last_auth})"
+    echo "Authorization valid as of $(date -d @"$(get_auth_time)")"
     return 0
   elif is_authorization_valid; then
-    echo "Authorization valid as of $(date -d @${time_last_auth})"
+    echo "Authorization valid as of $(date -d @"$(get_auth_time)")"
     return 0
   elif [[ $? == 10 ]] && renew_auth_token; then
     return 0

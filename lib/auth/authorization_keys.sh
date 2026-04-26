@@ -4,6 +4,8 @@ keyring_name="etrade_keyring"
 
 auth_token_keyname="etrade_api_token"
 auth_secret_keyname="etrade_api_secret"
+auth_time_keyname="etrade_auth_time"
+auth_validity_seconds=3600
 
 function set_volatile_key() {
   local keyring="$1"
@@ -57,8 +59,19 @@ function set_auth_keys() {
   return 0
 }
 
+function set_auth_time() {
+  set_volatile_key "${keyring_name}" "${auth_time_keyname}" "$(date +%s)"
+  local key_id
+  if key_id=$(keyctl request user "${auth_time_keyname}" 2>/dev/null); then
+    keyctl timeout "${key_id}" "${auth_validity_seconds}" &>/dev/null
+  fi
+}
+
+function get_auth_time() {
+  get_volatile_key "${auth_time_keyname}"
+}
+
 function clear_auth_keys() {
-  set_persistent_value "time_last_auth" ""
   clear_volatile_keyring "${keyring_name}"
 }
 

@@ -162,7 +162,7 @@ function get_quote_option() {
     return 1
   fi
 
-  local no_strikes=${opt_no_strikes:-40}
+  local no_strikes=${opt_no_strikes:-${QUOTE_NUM_STRIKES:-40}}
   if ! is_num "${no_strikes}"; then
     echo "Illegal number of strikes: ${no_strikes}"
     return 1
@@ -181,9 +181,11 @@ function get_quote_option() {
       return 1
     fi
 
-    local opt_year=$(date --date="Next Friday" +"%Y")
-    local opt_month=$(date --date="Next Friday" +"%m")
-    local opt_day=$(date --date="Next Friday" +"%d")
+    local weeks_out="${QUOTE_WEEKS_OUT:-1}"
+    local expiry_date="next friday + $((weeks_out - 1)) weeks"
+    local opt_year=$(date --date="${expiry_date}" +"%Y")
+    local opt_month=$(date --date="${expiry_date}" +"%m")
+    local opt_day=$(date --date="${expiry_date}" +"%d")
 
     declare -A option_params
 
@@ -260,7 +262,7 @@ function get_quote_batch() {
       continue
     fi
 
-    local readonly num_attempts=3
+    local readonly num_attempts="${QUOTE_RETRY_ATTEMPTS:-3}"
     for i in $(seq 1 ${num_attempts}); do
       if ! get_quote -w ${symbol}; then
         echo "Attempt $i Quote for '${symbol}' failed"

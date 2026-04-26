@@ -117,9 +117,10 @@ function calc_available_options() {
   declare -a price_symbol_pairs
   get_price_symbol_pairs price_symbol_pairs
 
-  local readonly min_strike="${opt_min_strike:-0}"
-  local readonly max_strike="${opt_max_strike:-10000}"
-  local readonly min_spread="${opt_min_spread:-0}"
+  local readonly min_strike="${opt_min_strike:-${CALC_MIN_STRIKE:-0}}"
+  local readonly max_strike="${opt_max_strike:-${CALC_MAX_STRIKE:-10000}}"
+  local readonly min_spread="${opt_min_spread:-${CALC_MIN_SPREAD:-0}}"
+  local bid_pct="${CALC_BID_PCT:-0.01}"
 
   local type_lower="${option_type,,}"
   local output_csv_file=$(get_options_csv_filename "${type_lower}" "${min_strike}" "${max_strike}")
@@ -158,7 +159,7 @@ function calc_available_options() {
       seq_args="0 $((num_strikes - 1))"
     else
       seq_args="$((num_strikes - 1)) -1 0"
-      one_pct_price="$(echo "scale=3; $stock_price * 0.01" | bc)"
+      one_pct_price="$(echo "scale=3; $stock_price * ${bid_pct}" | bc)"
     fi
 
     for i in $(seq $seq_args); do
@@ -172,7 +173,7 @@ function calc_available_options() {
 
       local price_spread pct_basis
       if [[ "$option_type" == "Put" ]]; then
-        one_pct_price="$(echo "scale=3; $strike_price * 0.01" | bc)"
+        one_pct_price="$(echo "scale=3; $strike_price * ${bid_pct}" | bc)"
         if [ $(echo "$strike_price >= $stock_price" | bc -l) -eq 1 ] || \
            [ $(echo "$strike_price > $max_strike" | bc -l) -eq 1 ]; then
           break
