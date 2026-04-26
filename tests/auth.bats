@@ -116,6 +116,39 @@ teardown() {
   [ "${access_secret}" = "mysecret456" ]
 }
 
+# ─── set_auth_time / get_auth_time ───────────────────────────────────────────
+
+@test "get_auth_time: returns failure when no auth time is stored" {
+  run get_auth_time
+  [ "$status" -ne 0 ]
+}
+
+@test "set_auth_time / get_auth_time: round-trip returns a numeric timestamp" {
+  set_auth_time
+  run get_auth_time
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^[0-9]+$ ]]
+}
+
+@test "set_auth_time: stored timestamp is close to current time" {
+  set_auth_time
+  local stored now
+  stored=$(get_auth_time)
+  now=$(date +%s)
+  [ $(( now - stored )) -lt 5 ]
+}
+
+@test "set_auth_time: overwrites previous auth time" {
+  set_auth_time
+  local first
+  first=$(get_auth_time)
+  sleep 1
+  set_auth_time
+  local second
+  second=$(get_auth_time)
+  [ "$second" -ge "$first" ]
+}
+
 # ─── clear_auth_keys ──────────────────────────────────────────────────────────
 
 @test "clear_auth_keys: auth token is not retrievable after clearing" {
@@ -131,5 +164,12 @@ teardown() {
   set_auth_keys "${access_response}"
   clear_auth_keys
   run retrieve_auth_keys
+  [ "$status" -ne 0 ]
+}
+
+@test "clear_auth_keys: auth time is not retrievable after clearing" {
+  set_auth_time
+  clear_auth_keys
+  run get_auth_time
   [ "$status" -ne 0 ]
 }
