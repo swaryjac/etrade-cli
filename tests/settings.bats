@@ -112,6 +112,30 @@ setup() {
   [ -z "${CALC_MIN_STRIKE}" ]
 }
 
+@test "load_settings: exports CALC_BID_PCT when configured" {
+  set_setting "calc.bid_pct" "0.02"
+  load_settings
+  [ "${CALC_BID_PCT}" = "0.02" ]
+}
+
+@test "load_settings: exports QUOTE_NUM_STRIKES when configured" {
+  set_setting "quote.num_strikes" "20"
+  load_settings
+  [ "${QUOTE_NUM_STRIKES}" = "20" ]
+}
+
+@test "load_settings: exports QUOTE_WEEKS_OUT when configured" {
+  set_setting "quote.weeks_out" "2"
+  load_settings
+  [ "${QUOTE_WEEKS_OUT}" = "2" ]
+}
+
+@test "load_settings: exports QUOTE_RETRY_ATTEMPTS when configured" {
+  set_setting "quote.retry_attempts" "5"
+  load_settings
+  [ "${QUOTE_RETRY_ATTEMPTS}" = "5" ]
+}
+
 # ─── settings command: get ────────────────────────────────────────────────────
 
 @test "settings get: prints value for a configured key" {

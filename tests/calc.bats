@@ -113,6 +113,22 @@ get_csv_file() {
   grep -q "^LUNR," "$(get_csv_file)"
 }
 
+@test "calc put: CALC_BID_PCT setting filters options below threshold" {
+  # Highest PLTR put ratio below stock price is 2.40% (strike=146, bid=3.5)
+  # bid_pct=0.03 gives threshold 4.38, which exceeds all available bids
+  export CALC_BID_PCT=0.03
+  write_symbols_file "PLTR"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  [ "$(wc -l < "$(get_csv_file)")" -eq 1 ]
+}
+
+@test "calc put: default CALC_BID_PCT of 0.01 allows qualifying options" {
+  unset CALC_BID_PCT
+  write_symbols_file "PLTR"
+  calc_available_puts -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^PLTR," "$(get_csv_file)"
+}
+
 # ─── Call tests ───────────────────────────────────────────────────────────────
 
 # Fixture data summary (calls, effective min_spread=0):

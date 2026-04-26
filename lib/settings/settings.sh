@@ -6,15 +6,23 @@ readonly -a VALID_SETTING_KEYS=(
   "calc.min_strike"
   "calc.max_strike"
   "calc.min_spread"
+  "calc.bid_pct"
+  "quote.num_strikes"
+  "quote.weeks_out"
+  "quote.retry_attempts"
 )
 
 function _get_setting_default() {
   case "$1" in
-    directories.cache_dir)      echo "${DEFAULT_CACHE_DIR}" ;;
+    directories.cache_dir)       echo "${DEFAULT_CACHE_DIR}" ;;
     directories.calc_output_dir) echo "(current directory)" ;;
-    calc.min_strike)            echo "0" ;;
-    calc.max_strike)            echo "10000" ;;
-    calc.min_spread)            echo "0" ;;
+    calc.min_strike)             echo "0" ;;
+    calc.max_strike)             echo "10000" ;;
+    calc.min_spread)             echo "0" ;;
+    calc.bid_pct)                echo "0.01" ;;
+    quote.num_strikes)           echo "40" ;;
+    quote.weeks_out)             echo "1" ;;
+    quote.retry_attempts)        echo "3" ;;
   esac
 }
 

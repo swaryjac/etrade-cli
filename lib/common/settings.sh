@@ -33,7 +33,11 @@ function load_settings() {
   export CACHE_DIR
 
   local val
-  if val=$(get_setting "calc.min_strike"); then export CALC_MIN_STRIKE="${val}"; fi
-  if val=$(get_setting "calc.max_strike"); then export CALC_MAX_STRIKE="${val}"; fi
-  if val=$(get_setting "calc.min_spread"); then export CALC_MIN_SPREAD="${val}"; fi
+  if val=$(get_setting "calc.min_strike");        then export CALC_MIN_STRIKE="${val}";       fi
+  if val=$(get_setting "calc.max_strike");        then export CALC_MAX_STRIKE="${val}";       fi
+  if val=$(get_setting "calc.min_spread");        then export CALC_MIN_SPREAD="${val}";       fi
+  if val=$(get_setting "calc.bid_pct");           then export CALC_BID_PCT="${val}";          fi
+  if val=$(get_setting "quote.num_strikes");      then export QUOTE_NUM_STRIKES="${val}";     fi
+  if val=$(get_setting "quote.weeks_out");        then export QUOTE_WEEKS_OUT="${val}";       fi
+  if val=$(get_setting "quote.retry_attempts");   then export QUOTE_RETRY_ATTEMPTS="${val}";  fi
 }
