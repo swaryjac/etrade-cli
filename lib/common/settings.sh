@@ -1,29 +1,34 @@
 #!/bin/bash
 
-readonly PERSISTENT_VALUE_FILE="$HOME/.etrade_vars"
+readonly CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/etrade/config.json"
 readonly DEFAULT_CACHE_DIR="/dev/shm/.etrade_quotes"
 
-function set_persistent_value() {
-  local key="$1"
-  local value="$2"
-  local file="${PERSISTENT_VALUE_FILE}"
-
-  if [ ! -f "$PERSISTENT_VALUE_FILE" ]; then
-    touch "$PERSISTENT_VALUE_FILE"
+function _ensure_config_file() {
+  if [ ! -f "${CONFIG_FILE}" ]; then
+    mkdir -p "$(dirname "${CONFIG_FILE}")"
+    printf '{}' > "${CONFIG_FILE}"
   fi
-  # Remove existing entry for the key
-  sed -i "/^$key=/d" "$file"
-  # Append new value
-  echo "$key=$value" >> "$file"
-
-  source "${PERSISTENT_VALUE_FILE}"
 }
 
-function load_persistent_values() {
-  if [ -f "$PERSISTENT_VALUE_FILE" ]; then
-    source "$PERSISTENT_VALUE_FILE"
-  fi
-  if [ -z "${CACHE_DIR}" ]; then
-    set_persistent_value "CACHE_DIR" "$DEFAULT_CACHE_DIR"
-  fi
+function get_setting() {
+  local key_path="$1"
+  local value
+  [ -f "${CONFIG_FILE}" ] || return 1
+  value=$(jq -r ".${key_path} // empty" "${CONFIG_FILE}" 2>/dev/null)
+  [ -n "${value}" ] || return 1
+  echo "${value}"
+}
+
+function set_setting() {
+  local key_path="$1"
+  local value="$2"
+  _ensure_config_file
+  local updated
+  updated=$(jq --arg val "${value}" ".${key_path} = \$val" "${CONFIG_FILE}") || return 1
+  printf '%s\n' "${updated}" > "${CONFIG_FILE}"
+}
+
+function load_settings() {
+  CACHE_DIR=$(get_setting "directories.cache_dir") || CACHE_DIR="${DEFAULT_CACHE_DIR}"
+  export CACHE_DIR
 }
