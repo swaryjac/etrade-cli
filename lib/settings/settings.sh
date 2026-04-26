@@ -8,6 +8,16 @@ readonly -a VALID_SETTING_KEYS=(
   "calc.min_spread"
 )
 
+function _get_setting_default() {
+  case "$1" in
+    directories.cache_dir)      echo "${DEFAULT_CACHE_DIR}" ;;
+    directories.calc_output_dir) echo "(current directory)" ;;
+    calc.min_strike)            echo "0" ;;
+    calc.max_strike)            echo "10000" ;;
+    calc.min_spread)            echo "0" ;;
+  esac
+}
+
 function _is_valid_setting_key() {
   local key="$1"
   local valid
@@ -27,7 +37,7 @@ function cmd_settings_get() {
   if value=$(get_setting "${key}"); then
     echo "${value}"
   else
-    printf "%s is not set\n" "${key}" >&2
+    printf "%s is not set (default: %s)\n" "${key}" "$(_get_setting_default "${key}")" >&2
     return 1
   fi
 }
@@ -43,14 +53,15 @@ function cmd_settings_set() {
 }
 
 function cmd_settings_list() {
-  local key value
-  printf "%-30s %s\n" "KEY" "VALUE"
-  printf "%-30s %s\n" "---" "-----"
+  local key value default
+  printf "%-30s %-25s %s\n" "KEY" "VALUE" "DEFAULT"
+  printf "%-30s %-25s %s\n" "---" "-----" "-------"
   for key in "${VALID_SETTING_KEYS[@]}"; do
+    default="$(_get_setting_default "${key}")"
     if value=$(get_setting "${key}"); then
-      printf "%-30s %s\n" "${key}" "${value}"
+      printf "%-30s %-25s %s\n" "${key}" "${value}" "${default}"
     else
-      printf "%-30s %s\n" "${key}" "(not set)"
+      printf "%-30s %-25s %s\n" "${key}" "(not set)" "${default}"
     fi
   done
 }

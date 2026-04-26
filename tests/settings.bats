@@ -101,6 +101,12 @@ setup() {
 @test "settings get: returns failure and message for unset key" {
   run cmd_settings_get "directories.cache_dir"
   [ "$status" -ne 0 ]
+  [[ "$output" == *"not set"* ]]
+}
+
+@test "settings get: includes default value in message when key is not set" {
+  run cmd_settings_get "directories.cache_dir"
+  [[ "$output" == *"${DEFAULT_CACHE_DIR}"* ]]
 }
 
 @test "settings get: returns failure for an unknown key" {
@@ -142,4 +148,10 @@ setup() {
 @test "settings list: shows not-set marker for unset keys" {
   run cmd_settings_list
   echo "$output" | grep -q "(not set)"
+}
+
+@test "settings list: shows default values column" {
+  run cmd_settings_list
+  echo "$output" | grep -q "DEFAULT"
+  echo "$output" | grep -q "${DEFAULT_CACHE_DIR}"
 }
