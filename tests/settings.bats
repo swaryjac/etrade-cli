@@ -8,7 +8,7 @@ setup() {
   # Redirect XDG config home so CONFIG_FILE resolves inside the temp dir
   export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/.config"
 
-  source "$PARENT_PATH/lib/common/settings.sh"
+  source "$PARENT_PATH/lib/common/config.sh"
   source "$PARENT_PATH/lib/settings/settings.sh"
 
   # Pre-create the config directory so tests can write directly to CONFIG_FILE

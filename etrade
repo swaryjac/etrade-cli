@@ -35,7 +35,7 @@ export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
 
 check_dependencies
 
-source "$PARENT_PATH/lib/common/settings.sh"
+source "$PARENT_PATH/lib/common/config.sh"
 source "$PARENT_PATH/lib/common/http_defns.sh"
 source "$PARENT_PATH/lib/common/validation.sh"
 source "$PARENT_PATH/lib/auth/auth.sh"
