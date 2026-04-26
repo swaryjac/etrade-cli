@@ -26,6 +26,20 @@ function _get_setting_default() {
   esac
 }
 
+function _get_setting_note() {
+  local key="$1"
+  local effective_value="$2"
+  case "${key}" in
+    quote.weeks_out)
+      if [[ "${effective_value}" =~ ^[0-9]+$ ]]; then
+        local expiry
+        expiry=$(date --date="next friday + $((effective_value - 1)) weeks" +"%Y-%m-%d" 2>/dev/null)
+        [ -n "${expiry}" ] && echo "(next expiry: ${expiry})"
+      fi
+      ;;
+  esac
+}
+
 function _is_valid_setting_key() {
   local key="$1"
   local valid
@@ -41,11 +55,15 @@ function cmd_settings_get() {
     printf "Unknown setting: %s\n" "${key}" >&2
     return 1
   fi
-  local value
+  local value default note
+  default="$(_get_setting_default "${key}")"
   if value=$(get_setting "${key}"); then
-    echo "${value}"
+    note="$(_get_setting_note "${key}" "${value}")"
+    [ -n "${note}" ] && echo "${value}  ${note}" || echo "${value}"
   else
-    printf "%s is not set (default: %s)\n" "${key}" "$(_get_setting_default "${key}")" >&2
+    note="$(_get_setting_note "${key}" "${default}")"
+    printf "%s is not set (default: %s)%s\n" \
+      "${key}" "${default}" "${note:+  ${note}}" >&2
     return 1
   fi
 }
@@ -61,16 +79,19 @@ function cmd_settings_set() {
 }
 
 function cmd_settings_list() {
-  local key value default
-  printf "%-30s %-25s %s\n" "KEY" "VALUE" "DEFAULT"
-  printf "%-30s %-25s %s\n" "---" "-----" "-------"
+  local key value default effective note
+  printf "%-30s %-25s %-12s %s\n" "KEY" "VALUE" "DEFAULT" "NOTE"
+  printf "%-30s %-25s %-12s %s\n" "---" "-----" "-------" "----"
   for key in "${VALID_SETTING_KEYS[@]}"; do
     default="$(_get_setting_default "${key}")"
     if value=$(get_setting "${key}"); then
-      printf "%-30s %-25s %s\n" "${key}" "${value}" "${default}"
+      effective="${value}"
     else
-      printf "%-30s %-25s %s\n" "${key}" "(not set)" "${default}"
+      value="(not set)"
+      effective="${default}"
     fi
+    note="$(_get_setting_note "${key}" "${effective}")"
+    printf "%-30s %-25s %-12s %s\n" "${key}" "${value}" "${default}" "${note}"
   done
 }
 

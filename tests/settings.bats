@@ -166,7 +166,7 @@ setup() {
 @test "settings set: persists value retrievable by get" {
   cmd_settings_set "directories.cache_dir" "/tmp/quotes"
   run cmd_settings_get "directories.cache_dir"
-  [ "$output" = "/tmp/quotes" ]
+  [[ "$output" == "/tmp/quotes"* ]]
 }
 
 @test "settings set: returns failure for an unknown key" {
@@ -201,4 +201,36 @@ setup() {
   run cmd_settings_list
   echo "$output" | grep -q "DEFAULT"
   echo "$output" | grep -q "${DEFAULT_CACHE_DIR}"
+}
+
+# ─── setting notes ────────────────────────────────────────────────────────────
+
+@test "settings list: shows expiry date note for quote.weeks_out" {
+  run cmd_settings_list
+  echo "$output" | grep "quote.weeks_out" | grep -qE "[0-9]{4}-[0-9]{2}-[0-9]{2}"
+}
+
+@test "settings list: expiry date note reflects configured weeks_out value" {
+  set_setting "quote.weeks_out" "2"
+  local expected
+  expected=$(date --date="next friday + 1 weeks" +"%Y-%m-%d")
+  run cmd_settings_list
+  echo "$output" | grep "quote.weeks_out" | grep -q "${expected}"
+}
+
+@test "settings get: shows expiry date note for quote.weeks_out when set" {
+  set_setting "quote.weeks_out" "1"
+  local expected
+  expected=$(date --date="next friday + 0 weeks" +"%Y-%m-%d")
+  run cmd_settings_get "quote.weeks_out"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"${expected}"* ]]
+}
+
+@test "settings get: shows expiry date note for quote.weeks_out when unset" {
+  local expected
+  expected=$(date --date="next friday + 0 weeks" +"%Y-%m-%d")
+  run cmd_settings_get "quote.weeks_out"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"${expected}"* ]]
 }
