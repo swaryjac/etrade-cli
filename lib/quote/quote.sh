@@ -160,18 +160,6 @@ function get_quote_option() {
     return 1
   fi
 
-  local strike_price=${opt_strike_price:-$(get_quote_price "${quote_symbol}")}
-  if ! is_num "${strike_price}"; then
-    echo "Illegal strike price: ${strike_price}"
-    return 1
-  fi
-
-  local no_strikes=${opt_no_strikes:-${QUOTE_NUM_STRIKES:-40}}
-  if ! is_num "${no_strikes}"; then
-    echo "Illegal number of strikes: ${no_strikes}"
-    return 1
-  fi
-
   local option_file=$(get_option_filename "${quote_symbol}")
   if $read_from_cache; then
     if ! option_file_exists "${quote_symbol}"; then
@@ -180,6 +168,18 @@ function get_quote_option() {
     fi
     local option_text=$(cat "${option_file}")
   else
+
+    local strike_price=${opt_strike_price:-$(get_quote_price "${quote_symbol}")}
+    if ! is_num "${strike_price}"; then
+      echo "Illegal strike price: ${strike_price}"
+      return 1
+    fi
+
+    local no_strikes=${opt_no_strikes:-${QUOTE_NUM_STRIKES:-40}}
+    if ! is_num "${no_strikes}"; then
+      echo "Illegal number of strikes: ${no_strikes}"
+      return 1
+    fi
 
     if ! import_secret_variables; then
       return 1
