@@ -112,7 +112,7 @@ function get_quote_price() {
 }
 
 function get_quote_option() {
-  local OPTS=$(getopt -o s:n:rw --long strike-price:,number-strikes:,read-cache,write-cache -- "$@")
+  local OPTS=$(getopt -o s:n:x:rw --long strike-price:,number-strikes:,expiry:,read-cache,write-cache -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -128,6 +128,10 @@ function get_quote_option() {
         ;;
       -n|--number-strikes)
         local opt_no_strikes="$2"
+        shift 2
+        ;;
+      -x|--expiry)
+        local opt_expiry="$2"
         shift 2
         ;;
       -r|--read-cache)
@@ -181,8 +185,17 @@ function get_quote_option() {
       return 1
     fi
 
-    local weeks_out="${QUOTE_WEEKS_OUT:-1}"
-    local expiry_date="next friday + $((weeks_out - 1)) weeks"
+    local expiry_date
+    if [[ -n "${opt_expiry}" ]]; then
+      if ! date --date="${opt_expiry}" &>/dev/null; then
+        echo "Invalid expiry date: ${opt_expiry}"
+        return 1
+      fi
+      expiry_date="${opt_expiry}"
+    else
+      local weeks_out="${QUOTE_WEEKS_OUT:-1}"
+      expiry_date="next friday + $((weeks_out - 1)) weeks"
+    fi
     local opt_year=$(date --date="${expiry_date}" +"%Y")
     local opt_month=$(date --date="${expiry_date}" +"%m")
     local opt_day=$(date --date="${expiry_date}" +"%d")
@@ -214,7 +227,7 @@ function get_quote_option() {
 }
 
 function get_quote_batch() {
-  local OPTS=$(getopt -o OWi: --long options,weekly,input: -- "$@")
+  local OPTS=$(getopt -o OWx:i: --long options,weekly,expiry:,input: -- "$@")
   if [[ $? != 0 ]]; then
     echo "Bad options"
     return 1
@@ -231,6 +244,10 @@ function get_quote_batch() {
       -W|--weekly)
         get_for_weekly_equities=true
         shift
+        ;;
+      -x|--expiry)
+        local opt_expiry="$2"
+        shift 2
         ;;
       -i|--input)
         local input_file="$2"
@@ -277,8 +294,12 @@ function get_quote_batch() {
         echo "Failed getting price: ${symbol}"
         continue
       fi
+      local expiry_args=()
+      if [[ -n "${opt_expiry}" ]]; then
+        expiry_args=(-x "${opt_expiry}")
+      fi
       for i in $(seq 1 ${num_attempts}); do
-        if ! get_quote_option -w -s "${stock_price}" ${symbol}; then
+        if ! get_quote_option -w -s "${stock_price}" "${expiry_args[@]}" ${symbol}; then
           echo "Attempt $i Option for '${symbol}' failed"
           sleep $((2 ** (i - 1)))
         else
@@ -337,6 +358,13 @@ function usage_quote() {
   printf "\t%-${option_title_len}s %s\n" "-n --number-strikes" \
            "The number of strikes, centered around the strike-price, to retrieve a quote for"
   printf "\t%${option_title_len}s Valid for: option when not reading from local cache\n" " "
+  printf "\n"
+  printf "\t%-${option_title_len}s %s\n" "-x --expiry <date>" \
+           "Expiration date to use for the option chain (e.g. 2026-05-02)."
+  printf "\t%${option_title_len}s %s\n" " " \
+           "Accepts any date format recognized by the 'date' command."
+  printf "\t%${option_title_len}s %s\n" " " \
+           "Overrides the weeks_out setting. Valid for: option, batch (with -O)"
   printf "\n"
   printf "\t%-${option_title_len}s %s\n" "-O --options" \
            "Saves an option chain quote in addition to FUNDAMENTAL stock quote"
