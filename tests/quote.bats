@@ -9,6 +9,7 @@ setup() {
 
   source "$PARENT_PATH/lib/common/validation.sh"
   source "$PARENT_PATH/lib/quote/quote.sh"
+  source "$REPO_ROOT/tests/mocks.sh"
 }
 
 # ─── get_quote_price ──────────────────────────────────────────────────────────
@@ -50,15 +51,89 @@ setup() {
 # ─── expiry validation ────────────────────────────────────────────────────────
 
 @test "get_quote_option: rejects invalid expiry date" {
-  import_secret_variables() { return 0; }
+  mock_auth_success
   run get_quote_option -s 100 -x "not-a-date" PLTR
   [ "$status" -ne 0 ]
   [[ "$output" == *"Invalid expiry date"* ]]
 }
 
 @test "get_quote_option: accepts valid expiry date" {
-  import_secret_variables() { return 0; }
-  send_etrade_query() { echo "{}"; }
+  mock_auth_success
+  mock_api_empty
   run get_quote_option -s 100 -x "2026-05-02" PLTR
   [ "$status" -eq 0 ]
+}
+
+# ─── get_quote (non-cache path) ──────────────────────────────────────────────
+
+@test "get_quote: returns JSON when API response has QuoteResponse" {
+  mock_auth_success
+  mock_api_returns "$FIXTURES_DIR/PLTR.json"
+  run get_quote PLTR
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"QuoteResponse"'* ]]
+}
+
+@test "get_quote: fails when API response lacks QuoteResponse" {
+  mock_auth_success
+  mock_api_empty
+  run get_quote PLTR
+  [ "$status" -ne 0 ]
+}
+
+@test "get_quote: fails when auth fails" {
+  mock_auth_failure
+  run get_quote PLTR
+  [ "$status" -ne 0 ]
+}
+
+# ─── get_quote_option (non-cache path) ───────────────────────────────────────
+
+@test "get_quote_option: returns option JSON when API succeeds" {
+  mock_auth_success
+  mock_api_returns "$FIXTURES_DIR/PLTR_opt.json"
+  run get_quote_option -s 100 PLTR
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"OptionChainResponse"'* ]]
+}
+
+@test "get_quote_option: uses get_quote_price for strike when -s not given" {
+  mock_auth_success
+  mock_quote_price "146.45"
+  mock_api_returns "$FIXTURES_DIR/PLTR_opt.json"
+  run get_quote_option PLTR
+  [ "$status" -eq 0 ]
+}
+
+@test "get_quote_option: fails when auth fails" {
+  mock_auth_failure
+  run get_quote_option -s 100 PLTR
+  [ "$status" -ne 0 ]
+}
+
+@test "get_quote_option: fails when QUOTE_NUM_STRIKES is non-numeric" {
+  mock_auth_success
+  export QUOTE_NUM_STRIKES="abc"
+  run get_quote_option -s 100 PLTR
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Illegal number of strikes"* ]]
+}
+
+# ─── get_quote_batch ─────────────────────────────────────────────────────────
+
+@test "get_quote_batch: writes quote cache file for symbol" {
+  export CACHE_DIR="$BATS_TEST_TMPDIR"
+  mock_auth_success
+  mock_api_returns "$FIXTURES_DIR/PLTR.json"
+  echo "PLTR" | get_quote_batch
+  [ -f "$(get_quote_filename PLTR)" ]
+}
+
+@test "get_quote_batch: retries on failure and eventually succeeds" {
+  export CACHE_DIR="$BATS_TEST_TMPDIR"
+  mock_auth_success
+  mock_api_fails_once_then_returns "$FIXTURES_DIR/PLTR.json"
+  mock_no_sleep
+  echo "PLTR" | get_quote_batch
+  [ -f "$(get_quote_filename PLTR)" ]
 }
