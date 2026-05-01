@@ -219,3 +219,12 @@ get_diff_csv_file() {
   ! grep -q "^PLTR," "$diff_csv"
   grep -q "^OKLO," "$diff_csv"
 }
+
+@test "calc skew: CALC_MIN_STRIKE setting produces diff CSV (filename consistency)" {
+  # Bug: calc_skew computed filenames with hardcoded 0 instead of CALC_MIN_STRIKE,
+  # so it passed wrong paths to call_and_put_diff and the diff CSV was never created.
+  export CALC_MIN_STRIKE=50
+  write_symbols_file "PLTR"
+  calc_skew -i "$BATS_TEST_TMPDIR/symbols.txt"
+  grep -q "^PLTR," "$(get_diff_csv_file)"
+}

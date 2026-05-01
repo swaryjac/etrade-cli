@@ -217,8 +217,8 @@ function calc_available_calls() {
 function calc_skew() {
   parse_calc_opts "$@" || return 1
 
-  local min_strike="${opt_min_strike:-0}"
-  local max_strike="${opt_max_strike:-10000}"
+  local min_strike="${opt_min_strike:-${CALC_MIN_STRIKE:-0}}"
+  local max_strike="${opt_max_strike:-${CALC_MAX_STRIKE:-10000}}"
   local put_csv=$(get_options_csv_filename "put" "${min_strike}" "${max_strike}")
   local call_csv=$(get_options_csv_filename "call" "${min_strike}" "${max_strike}")
 
