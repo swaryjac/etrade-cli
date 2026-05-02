@@ -129,6 +129,69 @@ setup() {
   [ -f "$(get_quote_filename PLTR)" ]
 }
 
+# ─── URL construction ────────────────────────────────────────────────────────
+
+@test "get_quote: URL contains ticker symbol and detailFlag=FUNDAMENTAL" {
+  mock_auth_success
+  mock_api_captures_url "$FIXTURES_DIR/PLTR.json"
+  run get_quote PLTR
+  [ "$status" -eq 0 ]
+  captured_url=$(cat "$_mock_captured_url_file")
+  [[ "$captured_url" == *"PLTR.json"* ]]
+  [[ "$captured_url" == *"detailFlag=FUNDAMENTAL"* ]]
+}
+
+@test "get_quote_option: URL contains symbol and strikePriceNear" {
+  mock_auth_success
+  mock_api_captures_url "$FIXTURES_DIR/PLTR_opt.json"
+  run get_quote_option -s 100 PLTR
+  [ "$status" -eq 0 ]
+  captured_url=$(cat "$_mock_captured_url_file")
+  [[ "$captured_url" == *"symbol=PLTR"* ]]
+  [[ "$captured_url" == *"strikePriceNear=100"* ]]
+}
+
+@test "get_quote_option: URL defaults to noOfStrikes=40" {
+  mock_auth_success
+  mock_api_captures_url "$FIXTURES_DIR/PLTR_opt.json"
+  run get_quote_option -s 100 PLTR
+  [ "$status" -eq 0 ]
+  captured_url=$(cat "$_mock_captured_url_file")
+  [[ "$captured_url" == *"noOfStrikes=40"* ]]
+}
+
+@test "get_quote_option: -n flag sets noOfStrikes in URL" {
+  mock_auth_success
+  mock_api_captures_url "$FIXTURES_DIR/PLTR_opt.json"
+  run get_quote_option -s 100 -n 5 PLTR
+  [ "$status" -eq 0 ]
+  captured_url=$(cat "$_mock_captured_url_file")
+  [[ "$captured_url" == *"noOfStrikes=5"* ]]
+}
+
+@test "get_quote_option: QUOTE_NUM_STRIKES env var sets noOfStrikes in URL" {
+  mock_auth_success
+  mock_api_captures_url "$FIXTURES_DIR/PLTR_opt.json"
+  export QUOTE_NUM_STRIKES=5
+  run get_quote_option -s 100 PLTR
+  [ "$status" -eq 0 ]
+  captured_url=$(cat "$_mock_captured_url_file")
+  [[ "$captured_url" == *"noOfStrikes=5"* ]]
+}
+
+@test "get_quote_option: -x flag sets expiryYear/Month/Day in URL" {
+  mock_auth_success
+  mock_api_captures_url "$FIXTURES_DIR/PLTR_opt.json"
+  run get_quote_option -s 100 -x "2026-05-16" PLTR
+  [ "$status" -eq 0 ]
+  captured_url=$(cat "$_mock_captured_url_file")
+  [[ "$captured_url" == *"expiryYear=2026"* ]]
+  [[ "$captured_url" == *"expiryMonth=05"* ]]
+  [[ "$captured_url" == *"expiryDay=16"* ]]
+}
+
+# ─── get_quote_batch ─────────────────────────────────────────────────────────
+
 @test "get_quote_batch: retries on failure and eventually succeeds" {
   export CACHE_DIR="$BATS_TEST_TMPDIR"
   mock_auth_success
