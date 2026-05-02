@@ -52,3 +52,12 @@ mock_quote_price() {
 mock_no_sleep() {
   sleep() { :; }
 }
+
+mock_api_captures_url() {
+  _mock_fixture="$1"
+  _mock_captured_url_file=$(mktemp)
+  send_etrade_query() {
+    echo "$1" > "$_mock_captured_url_file"
+    cat "$_mock_fixture"
+  }
+}
