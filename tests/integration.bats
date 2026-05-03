@@ -1,0 +1,66 @@
+#!/usr/bin/env bats
+
+# Sandbox integration tests. Requires sandbox credentials and a valid auth token.
+#
+# Setup:
+#   etrade auth setup --sandbox
+#   ETRADE_ENV=sandbox etrade auth get
+#
+# Run:
+#   ETRADE_ENV=sandbox bats tests/integration.bats
+
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+
+setup() {
+  export PARENT_PATH="$REPO_ROOT"
+  export ETRADE_ENV="sandbox"
+  export CACHE_DIR="$BATS_TEST_TMPDIR"
+
+  source "$PARENT_PATH/lib/common/config.sh"
+  source "$PARENT_PATH/lib/common/http_defns.sh"
+  source "$PARENT_PATH/lib/common/validation.sh"
+  source "$PARENT_PATH/lib/auth/auth.sh"
+  source "$PARENT_PATH/lib/quote/quote.sh"
+}
+
+require_sandbox_credentials() {
+  if ! load_permanent_api_key 2>/dev/null; then
+    skip "No sandbox API key stored (run: etrade auth setup --sandbox)"
+  fi
+  if ! retrieve_auth_keys 2>/dev/null; then
+    skip "No sandbox auth token (run: ETRADE_ENV=sandbox etrade auth get)"
+  fi
+}
+
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+
+@test "auth: sandbox authorization is valid" {
+  require_sandbox_credentials
+  run is_authorization_valid
+  [ "$status" -eq 0 ]
+}
+
+# ─── Quote ────────────────────────────────────────────────────────────────────
+
+@test "quote: get_quote returns QuoteResponse for valid symbol" {
+  require_sandbox_credentials
+  run get_quote AAPL
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e 'has("QuoteResponse")' > /dev/null
+}
+
+@test "quote: get_quote_option returns OptionChainResponse for valid symbol" {
+  require_sandbox_credentials
+  local strike_price
+  strike_price=$(get_quote_price AAPL)
+  run get_quote_option -s "$strike_price" AAPL
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e 'has("OptionChainResponse")' > /dev/null
+}
+
+@test "quote: get_quote_batch writes cache file for symbol" {
+  require_sandbox_credentials
+  run get_quote_batch AAPL
+  [ "$status" -eq 0 ]
+  [ -f "$(get_quote_filename AAPL)" ]
+}
