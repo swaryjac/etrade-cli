@@ -9,9 +9,11 @@ permanent_secret_label="Etrade Account Secret"
 _creds_file="${XDG_CONFIG_HOME:-$HOME/.config}/etrade/credentials"
 
 function _secret_service_available() {
-  local st_err
-  st_err=$(secret-tool lookup _check_ _check_ 2>&1)
-  [[ "$st_err" != *"not activatable"* ]]
+  dbus-send --session --dest=org.freedesktop.secrets \
+    --type=method_call \
+    /org/freedesktop/secrets/collection/login \
+    org.freedesktop.DBus.Properties.GetAll \
+    string:"org.freedesktop.Secret.Collection" &>/dev/null
 }
 
 function _read_creds_file() {
