@@ -10,6 +10,10 @@ function _ensure_config_file() {
   fi
 }
 
+function etrade_api_host() {
+  [[ "${ETRADE_ENV:-production}" == "sandbox" ]] && echo "apisb.etrade.com" || echo "api.etrade.com"
+}
+
 function get_setting() {
   local key_path="$1"
   local value

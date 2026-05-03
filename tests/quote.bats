@@ -7,6 +7,7 @@ setup() {
   export PARENT_PATH="$REPO_ROOT"
   export CACHE_DIR="$FIXTURES_DIR"
 
+  source "$PARENT_PATH/lib/common/config.sh"
   source "$PARENT_PATH/lib/common/validation.sh"
   source "$PARENT_PATH/lib/quote/quote.sh"
   source "$REPO_ROOT/tests/mocks.sh"

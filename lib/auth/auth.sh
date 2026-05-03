@@ -3,11 +3,6 @@
 source "$PARENT_PATH/lib/auth/account_keys.sh"
 source "$PARENT_PATH/lib/auth/authorization_keys.sh"
 
-oauth_request_url="https://api.etrade.com/oauth/request_token"
-user_auth_url="https://us.etrade.com/e/t/etws/authorize"
-oauth_access_url="https://api.etrade.com/oauth/access_token"
-oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
-
 function authorized_in_last_hour() {
   get_auth_time > /dev/null 2>&1
 }
@@ -26,7 +21,7 @@ function is_authorization_valid() {
 
   local decoded_access_secret=$(pct_decode ${encoded_access_secret})
 
-  local quote_url="${quote_url_base}AA.json"
+  local quote_url="https://$(etrade_api_host)/v1/market/quote/AA.json"
 
   local detail_flag=FUNDAMENTAL
 
@@ -84,6 +79,8 @@ function renew_auth_token() {
 
   echo "Renewing Authorization"
 
+  local oauth_renew_url="https://$(etrade_api_host)/oauth/renew_access_token"
+
   local renew_response=$( \
     send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" \
   )
@@ -102,6 +99,10 @@ function get_new_authorization() {
     echo "Error, need permanent api key"
     return 1
   fi
+
+  local oauth_request_url="https://$(etrade_api_host)/oauth/request_token"
+  local oauth_access_url="https://$(etrade_api_host)/oauth/access_token"
+  local user_auth_url="https://us.etrade.com/e/t/etws/authorize"
 
   # check for existing authorization and revoke?
 

@@ -70,6 +70,15 @@ function clear_permanent_key() {
 }
 
 function save_account_api_keys() {
+  local permanent_key_attr_value permanent_secret_attr_value
+  if [[ "${ETRADE_ENV:-production}" == "sandbox" ]]; then
+    permanent_key_attr_value="etrade_sandbox_api_account_key"
+    permanent_secret_attr_value="etrade_sandbox_api_account_secret"
+  else
+    permanent_key_attr_value="etrade_api_account_key"
+    permanent_secret_attr_value="etrade_api_account_secret"
+  fi
+
   if load_permanent_api_key; then
     echo "This will remove previously saved key/secret, enter 'y' to proceed" > /dev/tty
     IFS= read -r user_confirmation
@@ -108,6 +117,15 @@ function save_account_api_keys() {
 }
 
 function load_permanent_api_key() {
+  local permanent_key_attr_value permanent_secret_attr_value
+  if [[ "${ETRADE_ENV:-production}" == "sandbox" ]]; then
+    permanent_key_attr_value="etrade_sandbox_api_account_key"
+    permanent_secret_attr_value="etrade_sandbox_api_account_secret"
+  else
+    permanent_key_attr_value="etrade_api_account_key"
+    permanent_secret_attr_value="etrade_api_account_secret"
+  fi
+
   local retrieved_key retrieved_secret
 
   if retrieved_key=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_key_attr_value}") && \
