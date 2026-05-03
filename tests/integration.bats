@@ -1,13 +1,12 @@
 #!/usr/bin/env bats
 
-# Sandbox integration tests. Requires sandbox credentials and a valid auth token.
-#
-# Setup:
+# Sandbox integration tests. Requires sandbox credentials stored via:
 #   etrade auth setup --sandbox
-#   ETRADE_ENV=sandbox etrade auth get
 #
 # Run:
 #   ETRADE_ENV=sandbox bats tests/integration.bats
+#
+# If no auth token is present, the test run will prompt for one interactively.
 
 REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
 
@@ -28,7 +27,7 @@ require_sandbox_credentials() {
     skip "No sandbox API key stored (run: etrade auth setup --sandbox)"
   fi
   if ! retrieve_auth_keys 2>/dev/null; then
-    skip "No sandbox auth token (run: ETRADE_ENV=sandbox etrade auth get)"
+    has_or_get_authorization || skip "Authorization failed or was cancelled"
   fi
 }
 
