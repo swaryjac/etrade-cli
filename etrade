@@ -20,13 +20,20 @@ function help_main() {
 
 function check_dependencies() {
   local missing=()
-  for cmd in curl jq openssl bc secret-tool; do
+  for cmd in curl jq openssl bc secret-tool keyctl; do
     if ! command -v "$cmd" &> /dev/null; then
       missing+=("$cmd")
     fi
   done
   if [ ${#missing[@]} -gt 0 ]; then
     echo "Error: missing required dependencies: ${missing[*]}" >&2
+    exit 1
+  fi
+
+  local st_err
+  st_err=$(secret-tool lookup _check_ _check_ 2>&1)
+  if [[ "$st_err" == *"not activatable"* ]]; then
+    echo "Error: secret service unavailable (is gnome-keyring-daemon running?)" >&2
     exit 1
   fi
 }
