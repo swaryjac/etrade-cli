@@ -4,7 +4,7 @@
 #   etrade auth setup --sandbox
 #
 # Run:
-#   ETRADE_ENV=sandbox bats tests/integration.bats
+#   bats tests/integration.bats
 #
 # If no auth token is present, the test run will prompt for one interactively.
 
