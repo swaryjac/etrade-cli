@@ -8,14 +8,6 @@ permanent_secret_label="Etrade Account Secret"
 
 _creds_file="${XDG_CONFIG_HOME:-$HOME/.config}/etrade/credentials"
 
-function _secret_service_available() {
-  dbus-send --session --dest=org.freedesktop.secrets \
-    --type=method_call \
-    /org/freedesktop/secrets/collection/login \
-    org.freedesktop.DBus.Properties.GetAll \
-    string:"org.freedesktop.Secret.Collection" &>/dev/null
-}
-
 function _read_creds_file() {
   local key="$1"
   [ -f "$_creds_file" ] || return 1
@@ -108,6 +100,18 @@ function clear_permanent_key() {
   secret-tool clear "${secret_tool_params[@]}"
 }
 
+function _store_to_keyring() {
+  local label="$1" value="$2"
+  shift 2
+  local -a params
+  params+=("--label=$label" "user" "$(whoami)")
+  while [ $# -ge 2 ]; do
+    params+=("$1" "$2")
+    shift 2
+  done
+  printf '%s' "$value" | secret-tool store "${params[@]}" 2>/dev/null
+}
+
 function save_account_api_keys() {
   local permanent_key_attr_value permanent_secret_attr_value permanent_key_label permanent_secret_label
   local creds_key_name creds_secret_name
@@ -137,51 +141,35 @@ function save_account_api_keys() {
     fi
   fi
 
-  if _secret_service_available; then
-    declare -a key_attributes=("${permanent_key_attr_name}" "${permanent_key_attr_value}")
-    declare -a secret_attributes=("${permanent_key_attr_name}" "${permanent_secret_attr_value}")
+  local entered_key entered_secret
 
-    set_permanent_key "${permanent_key_label}" "${key_attributes[@]}"
+  printf "Enter %s: " "${permanent_key_label}" > /dev/tty
+  IFS= read -rs entered_key
+  echo > /dev/tty
 
-    if [ -z "$(get_permanent_key "${key_attributes[@]}")" ]; then
-      echo "Empty key entered, nothing saved"
-      clear_permanent_key "${key_attributes[@]}"
-      clear_permanent_key "${secret_attributes[@]}"
-      return 1
-    fi
+  if [[ -z "$entered_key" ]]; then
+    echo "Empty key entered, nothing saved"
+    return 1
+  fi
 
-    set_permanent_key "${permanent_secret_label}" "${secret_attributes[@]}"
+  printf "Enter %s: " "${permanent_secret_label}" > /dev/tty
+  IFS= read -rs entered_secret
+  echo > /dev/tty
 
-    if [ -z "$(get_permanent_key "${secret_attributes[@]}")" ]; then
-      echo "Empty secret entered, nothing saved"
-      clear_permanent_key "${key_attributes[@]}"
-      clear_permanent_key "${secret_attributes[@]}"
-      return 1
-    fi
+  if [[ -z "$entered_secret" ]]; then
+    echo "Empty secret entered, nothing saved"
+    return 1
+  fi
+
+  if _store_to_keyring "$permanent_key_label" "$entered_key" \
+       "$permanent_key_attr_name" "$permanent_key_attr_value" && \
+     _store_to_keyring "$permanent_secret_label" "$entered_secret" \
+       "$permanent_key_attr_name" "$permanent_secret_attr_value"; then
+    printf "Credentials stored in keyring\n" > /dev/tty
   else
-    printf "Note: secret service unavailable, storing credentials in %s\n" "$_creds_file" > /dev/tty
-
-    local entered_key entered_secret
-
-    printf "Enter %s: " "${permanent_key_label}" > /dev/tty
-    IFS= read -rs entered_key
-    echo > /dev/tty
-
-    if [[ -z "$entered_key" ]]; then
-      echo "Empty key entered, nothing saved"
-      return 1
-    fi
-
-    printf "Enter %s: " "${permanent_secret_label}" > /dev/tty
-    IFS= read -rs entered_secret
-    echo > /dev/tty
-
-    if [[ -z "$entered_secret" ]]; then
-      echo "Empty secret entered, nothing saved"
-      _clear_creds_file "$creds_key_name"
-      return 1
-    fi
-
+    clear_permanent_key "$permanent_key_attr_name" "$permanent_key_attr_value" 2>/dev/null
+    clear_permanent_key "$permanent_key_attr_name" "$permanent_secret_attr_value" 2>/dev/null
+    printf "Note: storing credentials in %s (chmod 600)\n" "$_creds_file" > /dev/tty
     _write_creds_file "$creds_key_name" "$entered_key"
     _write_creds_file "$creds_secret_name" "$entered_secret"
   fi
@@ -192,32 +180,19 @@ function save_account_api_keys() {
 function _key_storage_status() {
   local key_attr_value="$1" secret_attr_value="$2"
   local creds_key_name="$3" creds_secret_name="$4"
-  local key_status secret_status
+  local key_status secret_status val
 
-  local in_keyring=false in_file=false
-
-  if _secret_service_available; then
-    get_permanent_key "${permanent_key_attr_name}" "${key_attr_value}" &>/dev/null && in_keyring=true
-  fi
-  _read_creds_file "$creds_key_name" &>/dev/null && in_file=true
-
-  if $in_keyring; then
+  if val=$(get_permanent_key "${permanent_key_attr_name}" "${key_attr_value}" 2>/dev/null) && [[ -n "$val" ]]; then
     key_status="(stored in keyring)"
-  elif $in_file; then
+  elif _read_creds_file "$creds_key_name" &>/dev/null; then
     key_status="(stored in credentials file)"
   else
     key_status="(not stored)"
   fi
 
-  in_keyring=false; in_file=false
-  if _secret_service_available; then
-    get_permanent_key "${permanent_key_attr_name}" "${secret_attr_value}" &>/dev/null && in_keyring=true
-  fi
-  _read_creds_file "$creds_secret_name" &>/dev/null && in_file=true
-
-  if $in_keyring; then
+  if val=$(get_permanent_key "${permanent_key_attr_name}" "${secret_attr_value}" 2>/dev/null) && [[ -n "$val" ]]; then
     secret_status="(stored in keyring)"
-  elif $in_file; then
+  elif _read_creds_file "$creds_secret_name" &>/dev/null; then
     secret_status="(stored in credentials file)"
   else
     secret_status="(not stored)"
@@ -281,13 +256,12 @@ function load_permanent_api_key() {
   fi
 
   # Keyring
-  if _secret_service_available; then
-    if retrieved_key=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_key_attr_value}") && \
-       retrieved_secret=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_secret_attr_value}"); then
-      export key_value="${retrieved_key}"
-      export secret_value="${retrieved_secret}"
-      return 0
-    fi
+  if retrieved_key=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_key_attr_value}" 2>/dev/null) && \
+     retrieved_secret=$(get_permanent_key "${permanent_key_attr_name}" "${permanent_secret_attr_value}" 2>/dev/null) && \
+     [[ -n "$retrieved_key" && -n "$retrieved_secret" ]]; then
+    export key_value="${retrieved_key}"
+    export secret_value="${retrieved_secret}"
+    return 0
   fi
 
   # Credentials file
