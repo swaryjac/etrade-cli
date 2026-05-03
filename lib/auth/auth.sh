@@ -199,6 +199,11 @@ function usage_auth() {
            "Enter your Etrade Account API key and secret for storage in gnome-keyring"
   printf "\t%${sec_line_indent}s%s\n" " " \
            "Required for authorization to perform all quote operations"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Use -S/--sandbox to store sandbox credentials instead of production"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "keys" \
+           "Print which API keys are currently stored in gnome-keyring"
   printf "\n"
   printf "\t%-${subcmd_len}s - %s\n" "check" \
            "Print the current authorization status:"
@@ -239,7 +244,26 @@ function execute_auth() {
   local subcommand=$1
   case "$subcommand" in
     setup)
+      shift
+      local OPTS
+      OPTS=$(getopt -o S --long sandbox -- "$@")
+      if [[ $? != 0 ]]; then
+        usage_auth 1>&2
+        return 1
+      fi
+      eval set -- "$OPTS"
+      local ETRADE_ENV="${ETRADE_ENV:-production}"
+      while true; do
+        case "$1" in
+          -S|--sandbox) ETRADE_ENV=sandbox; shift ;;
+          --) shift; break ;;
+          *) echo "Option Parsing Error"; return 1 ;;
+        esac
+      done
       save_account_api_keys
+      ;;
+    keys)
+      show_stored_keys
       ;;
     check)
       check_authorization

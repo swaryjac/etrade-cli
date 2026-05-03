@@ -70,13 +70,17 @@ function clear_permanent_key() {
 }
 
 function save_account_api_keys() {
-  local permanent_key_attr_value permanent_secret_attr_value
+  local permanent_key_attr_value permanent_secret_attr_value permanent_key_label permanent_secret_label
   if [[ "${ETRADE_ENV:-production}" == "sandbox" ]]; then
     permanent_key_attr_value="etrade_sandbox_api_account_key"
     permanent_secret_attr_value="etrade_sandbox_api_account_secret"
+    permanent_key_label="Etrade Sandbox Account Key"
+    permanent_secret_label="Etrade Sandbox Account Secret"
   else
     permanent_key_attr_value="etrade_api_account_key"
     permanent_secret_attr_value="etrade_api_account_secret"
+    permanent_key_label="Etrade Account Key"
+    permanent_secret_label="Etrade Account Secret"
   fi
 
   if load_permanent_api_key; then
@@ -114,6 +118,38 @@ function save_account_api_keys() {
     return 1
   fi
   return 0
+}
+
+function show_stored_keys() {
+  local env env_label key_attr_value secret_attr_value key_status secret_status
+
+  for env in production sandbox; do
+    if [[ "$env" == "sandbox" ]]; then
+      env_label="Sandbox"
+      key_attr_value="etrade_sandbox_api_account_key"
+      secret_attr_value="etrade_sandbox_api_account_secret"
+    else
+      env_label="Production"
+      key_attr_value="etrade_api_account_key"
+      secret_attr_value="etrade_api_account_secret"
+    fi
+
+    if get_permanent_key "${permanent_key_attr_name}" "${key_attr_value}" &>/dev/null; then
+      key_status="(stored)"
+    else
+      key_status="(not stored)"
+    fi
+
+    if get_permanent_key "${permanent_key_attr_name}" "${secret_attr_value}" &>/dev/null; then
+      secret_status="(stored)"
+    else
+      secret_status="(not stored)"
+    fi
+
+    printf "%-10s %-7s %s\n" "${env_label}" "key:"    "${key_status}"
+    printf "%-10s %-7s %s\n" "${env_label}" "secret:" "${secret_status}"
+    echo
+  done
 }
 
 function load_permanent_api_key() {
