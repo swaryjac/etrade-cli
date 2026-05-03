@@ -29,13 +29,6 @@ function check_dependencies() {
     echo "Error: missing required dependencies: ${missing[*]}" >&2
     exit 1
   fi
-
-  local st_err
-  st_err=$(secret-tool lookup _check_ _check_ 2>&1)
-  if [[ "$st_err" == *"not activatable"* ]]; then
-    echo "Error: secret service unavailable (is gnome-keyring-daemon running?)" >&2
-    exit 1
-  fi
 }
 
 export PARENT_PATH=$(cd "$(dirname "$0")"; pwd)
