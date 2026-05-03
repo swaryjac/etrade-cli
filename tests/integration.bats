@@ -50,16 +50,13 @@ require_sandbox_credentials() {
 
 @test "quote: get_quote_option returns OptionChainResponse for valid symbol" {
   require_sandbox_credentials
-  local strike_price
-  strike_price=$(get_quote_price AAPL)
-  run get_quote_option -s "$strike_price" AAPL
+  run get_quote_option AAPL
   [ "$status" -eq 0 ]
   echo "$output" | jq -e 'has("OptionChainResponse")' > /dev/null
 }
 
 @test "quote: get_quote_batch writes cache file for symbol" {
   require_sandbox_credentials
-  run get_quote_batch AAPL
-  [ "$status" -eq 0 ]
+  echo "AAPL" | get_quote_batch
   [ -f "$(get_quote_filename AAPL)" ]
 }
