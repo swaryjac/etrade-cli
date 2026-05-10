@@ -3,16 +3,13 @@
 source "$PARENT_PATH/lib/quote/cache_files.sh"
 source "$PARENT_PATH/lib/quote/ticker_symbols.sh"
 
-quote_url_base="https://api.etrade.com/v1/market/quote/"
-option_url="https://api.etrade.com/v1/market/optionchains.json"
-
 function import_secret_variables() {
   if ! has_or_get_authorization > /dev/null; then
-    echo "Error: No Authorization available"
+    echo "Error: No Authorization available" >&2
     return 1
   fi
   if [[ -z "${access_token}" || -z "${access_secret}" ]]; then
-    echo "Failed retrieving authorization token/secret"
+    echo "Failed retrieving authorization token/secret" >&2
     return 1
   fi
   export decoded_access_secret=$(pct_decode ${access_secret})
@@ -71,7 +68,7 @@ function get_quote() {
       return 1
     fi
 
-    local quote_url="${quote_url_base}${quote_symbol}.json"
+    local quote_url="https://$(etrade_api_host)/v1/market/quote/${quote_symbol}.json"
 
     local detail_flag=FUNDAMENTAL
 
@@ -80,7 +77,7 @@ function get_quote() {
     quote_params["detailFlag"]="${detail_flag}"
     quote_params["oauth_token"]="${access_token}"
 
-    echo "Getting ${quote_symbol} quote"
+    echo "Getting ${quote_symbol} quote" > /dev/tty
 
     local quote_text=$( \
       send_etrade_query "${quote_url}?detailFlag=${detail_flag}" quote_params "${decoded_access_secret}" \
@@ -210,9 +207,10 @@ function get_quote_option() {
     option_params["expiryMonth"]="${opt_month}"
     option_params["expiryDay"]="${opt_day}"
 
+    local option_url="https://$(etrade_api_host)/v1/market/optionchains.json"
     local full_option_url="${option_url}?symbol=${quote_symbol}&strikePriceNear=${strike_price}&noOfStrikes=${no_strikes}&expiryYear=${opt_year}&expiryMonth=${opt_month}&expiryDay=${opt_day}"
 
-    echo "Getting ${quote_symbol} option"
+    echo "Getting ${quote_symbol} option" > /dev/tty
 
     local option_text=$( \
       send_etrade_query "${full_option_url}" option_params "${decoded_access_secret}" \
@@ -282,7 +280,7 @@ function get_quote_batch() {
     local readonly num_attempts="${QUOTE_RETRY_ATTEMPTS:-3}"
     for i in $(seq 1 ${num_attempts}); do
       if ! get_quote -w ${symbol}; then
-        echo "Attempt $i Quote for '${symbol}' failed"
+        echo "Attempt $i Quote for '${symbol}' failed" >&2
         sleep $((2 ** (i - 1)))
       else
         break
@@ -291,7 +289,7 @@ function get_quote_batch() {
 
     if $get_option_quotes; then
       if ! stock_price=$(get_quote_price -r ${symbol}); then
-        echo "Failed getting price: ${symbol}"
+        echo "Failed getting price: ${symbol}" >&2
         continue
       fi
       local expiry_args=()
@@ -300,7 +298,7 @@ function get_quote_batch() {
       fi
       for i in $(seq 1 ${num_attempts}); do
         if ! get_quote_option -w -s "${stock_price}" "${expiry_args[@]}" ${symbol}; then
-          echo "Attempt $i Option for '${symbol}' failed"
+          echo "Attempt $i Option for '${symbol}' failed" >&2
           sleep $((2 ** (i - 1)))
         else
           break

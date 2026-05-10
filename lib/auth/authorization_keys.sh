@@ -1,11 +1,19 @@
 #!/bin/bash
 
 keyring_name="etrade_keyring"
-
-auth_token_keyname="etrade_api_token"
-auth_secret_keyname="etrade_api_secret"
-auth_time_keyname="etrade_auth_time"
 auth_validity_seconds=3600
+
+function _init_auth_keynames() {
+  if [[ "${ETRADE_ENV:-production}" == "sandbox" ]]; then
+    auth_token_keyname="etrade_sandbox_api_token"
+    auth_secret_keyname="etrade_sandbox_api_secret"
+    auth_time_keyname="etrade_sandbox_auth_time"
+  else
+    auth_token_keyname="etrade_api_token"
+    auth_secret_keyname="etrade_api_secret"
+    auth_time_keyname="etrade_auth_time"
+  fi
+}
 
 function set_volatile_key() {
   local keyring="$1"
@@ -44,6 +52,7 @@ function clear_volatile_keyring() {
 }
 
 function set_auth_keys() {
+  _init_auth_keynames
   local access_response_text="$1"
 
   if [[ ! "${access_response}" =~ oauth_token=(.*)\&oauth_token_secret=(.*)$ ]]; then
@@ -60,6 +69,7 @@ function set_auth_keys() {
 }
 
 function set_auth_time() {
+  _init_auth_keynames
   set_volatile_key "${keyring_name}" "${auth_time_keyname}" "$(date +%s)"
   local key_id
   if key_id=$(keyctl request user "${auth_time_keyname}" 2>/dev/null); then
@@ -68,6 +78,7 @@ function set_auth_time() {
 }
 
 function get_auth_time() {
+  _init_auth_keynames
   get_volatile_key "${auth_time_keyname}"
 }
 
@@ -76,6 +87,7 @@ function clear_auth_keys() {
 }
 
 function retrieve_auth_keys() {
+  _init_auth_keynames
   # separate declaration and assignment so local doesn't set last return value
   local retrieved_token retrieved_secret
   if retrieved_token=$(get_volatile_key "${auth_token_keyname}") && \

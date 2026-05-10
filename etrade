@@ -20,7 +20,7 @@ function help_main() {
 
 function check_dependencies() {
   local missing=()
-  for cmd in curl jq openssl bc secret-tool; do
+  for cmd in curl jq openssl bc secret-tool keyctl; do
     if ! command -v "$cmd" &> /dev/null; then
       missing+=("$cmd")
     fi

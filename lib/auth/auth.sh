@@ -3,11 +3,6 @@
 source "$PARENT_PATH/lib/auth/account_keys.sh"
 source "$PARENT_PATH/lib/auth/authorization_keys.sh"
 
-oauth_request_url="https://api.etrade.com/oauth/request_token"
-user_auth_url="https://us.etrade.com/e/t/etws/authorize"
-oauth_access_url="https://api.etrade.com/oauth/access_token"
-oauth_renew_url="https://api.etrade.com/oauth/renew_access_token"
-
 function authorized_in_last_hour() {
   get_auth_time > /dev/null 2>&1
 }
@@ -26,7 +21,7 @@ function is_authorization_valid() {
 
   local decoded_access_secret=$(pct_decode ${encoded_access_secret})
 
-  local quote_url="${quote_url_base}AA.json"
+  local quote_url="https://$(etrade_api_host)/v1/market/quote/AA.json"
 
   local detail_flag=FUNDAMENTAL
 
@@ -84,6 +79,8 @@ function renew_auth_token() {
 
   echo "Renewing Authorization"
 
+  local oauth_renew_url="https://$(etrade_api_host)/oauth/renew_access_token"
+
   local renew_response=$( \
     send_etrade_query "${oauth_renew_url}" authorize_params "${decoded_access_secret}" \
   )
@@ -102,6 +99,10 @@ function get_new_authorization() {
     echo "Error, need permanent api key"
     return 1
   fi
+
+  local oauth_request_url="https://$(etrade_api_host)/oauth/request_token"
+  local oauth_access_url="https://$(etrade_api_host)/oauth/access_token"
+  local user_auth_url="https://us.etrade.com/e/t/etws/authorize"
 
   # check for existing authorization and revoke?
 
@@ -141,7 +142,7 @@ function get_new_authorization() {
   echo "************************************" > /dev/tty
   echo "" > /dev/tty
 
-  read -p "Input verification code: " verification_code
+  read -p "Input verification code: " verification_code < /dev/tty
   if [ -z "$verification_code" ]; then
     echo "no code entered"
     return 1
@@ -198,6 +199,11 @@ function usage_auth() {
            "Enter your Etrade Account API key and secret for storage in gnome-keyring"
   printf "\t%${sec_line_indent}s%s\n" " " \
            "Required for authorization to perform all quote operations"
+  printf "\t%${sec_line_indent}s%s\n" " " \
+           "Use -S/--sandbox to store sandbox credentials instead of production"
+  printf "\n"
+  printf "\t%-${subcmd_len}s - %s\n" "keys" \
+           "Print which API keys are currently stored in gnome-keyring"
   printf "\n"
   printf "\t%-${subcmd_len}s - %s\n" "check" \
            "Print the current authorization status:"
@@ -238,7 +244,26 @@ function execute_auth() {
   local subcommand=$1
   case "$subcommand" in
     setup)
+      shift
+      local OPTS
+      OPTS=$(getopt -o S --long sandbox -- "$@")
+      if [[ $? != 0 ]]; then
+        usage_auth 1>&2
+        return 1
+      fi
+      eval set -- "$OPTS"
+      local ETRADE_ENV="${ETRADE_ENV:-production}"
+      while true; do
+        case "$1" in
+          -S|--sandbox) ETRADE_ENV=sandbox; shift ;;
+          --) shift; break ;;
+          *) echo "Option Parsing Error"; return 1 ;;
+        esac
+      done
       save_account_api_keys
+      ;;
+    keys)
+      show_stored_keys
       ;;
     check)
       check_authorization
