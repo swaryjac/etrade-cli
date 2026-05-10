@@ -4,11 +4,11 @@
 #   etrade auth setup --sandbox
 #
 # Run:
-#   bats tests/integration.bats
+#   bats tests/integration/
 #
 # If no auth token is present, the test run will prompt for one interactively.
 
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 
 setup() {
   export PARENT_PATH="$REPO_ROOT"
