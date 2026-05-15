@@ -9,6 +9,7 @@ function usage_main() {
   printf "\tetrade %-${cmd_len}s [subcommand] [options] <ticker symbol>\n" "quote"
   printf "\tetrade %-${cmd_len}s <subcommand> [options]\n"                 "calc"
   printf "\tetrade %-${cmd_len}s <subcommand>\n"                          "settings"
+  printf "\tetrade %-${cmd_len}s <subcommand> [account_id_key]\n"         "acct"
 }
 
 function help_main() {
