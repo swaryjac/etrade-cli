@@ -103,7 +103,11 @@ function setup_accounts() {
     printf "  Track this account? %s " "${prompt}"
 
     local answer
-    read -r answer < /dev/tty
+    if ! read -r answer < /dev/tty; then
+      printf "\nError: cannot read interactive input (no controlling tty); aborting setup\n" >&2
+      rm -f "${response_file}"
+      return 1
+    fi
 
     local tracked
     if [[ -z "${answer}" ]]; then
