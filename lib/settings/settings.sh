@@ -2,6 +2,7 @@
 
 readonly -a VALID_SETTING_KEYS=(
   "directories.cache_dir"
+  "directories.data_dir"
   "directories.calc_output_dir"
   "calc.min_strike"
   "calc.max_strike"
@@ -15,6 +16,7 @@ readonly -a VALID_SETTING_KEYS=(
 function _get_setting_default() {
   case "$1" in
     directories.cache_dir)       echo "${DEFAULT_CACHE_DIR}" ;;
+    directories.data_dir)        echo "${DEFAULT_DATA_DIR}" ;;
     directories.calc_output_dir) echo "(current directory)" ;;
     calc.min_strike)             echo "0" ;;
     calc.max_strike)             echo "10000" ;;

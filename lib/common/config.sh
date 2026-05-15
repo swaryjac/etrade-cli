@@ -2,6 +2,7 @@
 
 readonly CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/etrade/config.json"
 readonly DEFAULT_CACHE_DIR="/dev/shm/.etrade_quotes"
+readonly DEFAULT_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/etrade"
 
 function _ensure_config_file() {
   if [ ! -f "${CONFIG_FILE}" ]; then
@@ -35,6 +36,9 @@ function set_setting() {
 function load_settings() {
   CACHE_DIR=$(get_setting "directories.cache_dir") || CACHE_DIR="${DEFAULT_CACHE_DIR}"
   export CACHE_DIR
+
+  DATA_DIR=$(get_setting "directories.data_dir") || DATA_DIR="${DEFAULT_DATA_DIR}"
+  export DATA_DIR
 
   local val
   if val=$(get_setting "calc.min_strike");        then export CALC_MIN_STRIKE="${val}";       fi
