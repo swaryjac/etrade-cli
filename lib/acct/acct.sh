@@ -83,16 +83,27 @@ function setup_accounts() {
   local first=true
   local i
   for ((i = 0; i < num_accounts; i++)); do
-    local idkey acct_id desc atype status prior_tracked
+    local idkey acct_id desc name atype status prior_tracked display
     idkey=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountIdKey"        "${response_file}")
-    acct_id=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountId"          "${response_file}")
+    acct_id=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountId"         "${response_file}")
     desc=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountDesc   // \"\"" "${response_file}")
+    name=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountName   // \"\"" "${response_file}")
     atype=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountType  // \"\"" "${response_file}")
     status=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountStatus // \"\"" "${response_file}")
     prior_tracked=$(echo "${prior_map}" | jq -r --arg k "${idkey}" '.[$k] // false')
 
+    if [[ -n "${desc}" && -n "${name}" && "${name}" != "${desc}" ]]; then
+      display="${desc}-${name}"
+    elif [[ -n "${desc}" ]]; then
+      display="${desc}"
+    elif [[ -n "${name}" ]]; then
+      display="${name}"
+    else
+      display="${acct_id}"
+    fi
+
     if [[ "${status}" == "CLOSED" ]]; then
-      printf "Skipping closed account %s (%s)\n\n" "${acct_id}" "${desc}"
+      printf "Skipping closed account %s (%s)\n\n" "${display}" "${atype}"
       $first || tracked_map+=","
       tracked_map+="\"${idkey}\":false"
       first=false
@@ -106,8 +117,7 @@ function setup_accounts() {
       prompt="[y/N]"
     fi
 
-    printf "Account %s  (%s, %s)\n" "${acct_id}" "${atype}" "${status}"
-    [[ -n "${desc}" ]] && printf "  %s\n" "${desc}"
+    printf "Account %s (%s)\n" "${display}" "${atype}"
     printf "  Track this account? %s " "${prompt}"
 
     local answer
