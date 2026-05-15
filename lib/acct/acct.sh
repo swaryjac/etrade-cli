@@ -91,6 +91,14 @@ function setup_accounts() {
     status=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountStatus // \"\"" "${response_file}")
     prior_tracked=$(echo "${prior_map}" | jq -r --arg k "${idkey}" '.[$k] // false')
 
+    if [[ "${status}" == "CLOSED" ]]; then
+      printf "Skipping closed account %s (%s)\n\n" "${acct_id}" "${desc}"
+      $first || tracked_map+=","
+      tracked_map+="\"${idkey}\":false"
+      first=false
+      continue
+    fi
+
     local prompt
     if [[ "${prior_tracked}" == "true" ]]; then
       prompt="[Y/n]"
