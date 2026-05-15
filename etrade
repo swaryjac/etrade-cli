@@ -42,6 +42,7 @@ source "$PARENT_PATH/lib/auth/auth.sh"
 source "$PARENT_PATH/lib/quote/quote.sh"
 source "$PARENT_PATH/lib/calc/calc.sh"
 source "$PARENT_PATH/lib/settings/settings.sh"
+source "$PARENT_PATH/lib/acct/acct.sh"
 
 load_settings
 
@@ -65,6 +66,10 @@ case $1 in
   settings)
     shift
     execute_settings "$@"
+    ;;
+  acct)
+    shift
+    execute_acct "$@"
     ;;
   -h|--help)
     help_main
