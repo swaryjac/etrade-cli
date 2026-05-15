@@ -80,6 +80,22 @@ Not yet. To date only run in place.
 
 The tool makes use of the Linux keyring with `keyctl`, Gnome-keyring using `secret-tool`, `curl` and `jq` which all must be available.
 
+## Bash Completion
+
+A completion script is provided at `completions/etrade.bash` that completes the top-level commands (`auth`, `quote`, `calc`, `settings`) and their subcommands.
+
+To enable for the current shell:
+
+```console
+$ source completions/etrade.bash
+```
+
+To enable permanently, either add the `source` line to `~/.bashrc`, or install it where bash-completion auto-loads from:
+
+```console
+$ install -Dm644 completions/etrade.bash ~/.local/share/bash-completion/completions/etrade
+```
+
 ## License
 
 [Unlicense](https://unlicense.org)
