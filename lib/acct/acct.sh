@@ -308,18 +308,47 @@ function print_activity() {
   send_etrade_query "${activity_url}" activity_params "${decoded_access_secret}"
 }
 
+function print_balance() {
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
+    usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
+    return 1
+  fi
+  if ! import_secret_variables; then
+    return 1
+  fi
+
+  local balance_url="https://$(etrade_api_host)/v1/accounts/${acct_idkey}/balance.json"
+
+  # instType and realTimeNAV must be part of the signed parameter set, so they go
+  # in the parameter array (not the URL). BROKERAGE is the only value E*TRADE
+  # accepts for instType.
+  declare -A balance_params
+  balance_params["oauth_token"]="${access_token}"
+  balance_params["instType"]="BROKERAGE"
+  balance_params["realTimeNAV"]="true"
+
+  send_etrade_query "${balance_url}" balance_params "${decoded_access_secret}"
+}
+
 function usage_acct() {
   printf "Usage:\n"
   printf "\tetrade acct {-h --help}\n"
   printf "\tetrade acct list [-r --read-cache]\n"
   printf "\tetrade acct setup\n"
-  printf "\tetrade acct [port | activity] <account>\n\n"
+  printf "\tetrade acct [port | activity | balance] <account>\n\n"
   local subcmd_len=26
   printf "Subcommands:\n"
   printf "\t%-${subcmd_len}s - %s\n" "list"                       "Fetch account list from the API and print raw JSON"
   printf "\t%-${subcmd_len}s - %s\n" "setup"                      "Fetch accounts and interactively choose which to track for performance"
   printf "\t%-${subcmd_len}s - %s\n" "port <account>"             "Print the portfolio for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "activity <account>"         "Print recent transactions for the given account"
+  printf "\t%-${subcmd_len}s - %s\n" "balance <account>"          "Print balances (incl. available cash) for the given account"
   printf "\n<account> is the number from 'acct list -r', or an accountId/name/accountIdKey.\n"
   printf "\nOptions for 'list':\n"
   printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
@@ -351,6 +380,10 @@ function execute_acct() {
     activity)
       shift
       print_activity "$@"
+      ;;
+    balance)
+      shift
+      print_balance "$@"
       ;;
     -h|--help)
       help_acct
