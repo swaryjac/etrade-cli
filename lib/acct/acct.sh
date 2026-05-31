@@ -49,6 +49,74 @@ function _print_accounts_table() {
   done
 }
 
+# Resolve a user-supplied account selector to an accountIdKey, using the stored
+# accounts.json written by 'setup'. Prints the accountIdKey on success; prints a
+# diagnostic to stderr and returns non-zero on failure. Resolution order:
+#   1. a 1-based number, as shown by 'acct list -r'
+#   2. an exact accountId or accountIdKey
+#   3. a unique case-insensitive substring of an account's description/nickname
+function _resolve_account_idkey() {
+  local selector="$1"
+  local accounts_file="${DATA_DIR}/accounts.json"
+
+  if [[ ! -f "${accounts_file}" ]]; then
+    printf "No stored account data at %s. Run 'etrade acct setup' first.\n" \
+           "${accounts_file}" >&2
+    return 1
+  fi
+
+  local num
+  num=$(jq '.AccountListResponse.Accounts.Account | length' "${accounts_file}")
+
+  # 1. positional number (in range). A numeric selector outside 1..num is not an
+  #    error here: account ids are also numeric, so fall through to the exact match.
+  if [[ "${selector}" =~ ^[0-9]+$ ]] && (( selector >= 1 && selector <= num )); then
+    jq -r ".AccountListResponse.Accounts.Account[$((selector - 1))].accountIdKey" "${accounts_file}"
+    return 0
+  fi
+
+  # 2. exact accountId or accountIdKey
+  local exact
+  exact=$(jq -r --arg s "${selector}" '
+    .AccountListResponse.Accounts.Account[]
+    | select(.accountId == $s or .accountIdKey == $s)
+    | .accountIdKey' "${accounts_file}" | head -n1)
+  if [[ -n "${exact}" ]]; then
+    printf '%s\n' "${exact}"
+    return 0
+  fi
+
+  # 3. unique case-insensitive name substring
+  local lowered matches count
+  lowered=$(printf '%s' "${selector}" | tr '[:upper:]' '[:lower:]')
+  matches=$(jq -r --arg s "${lowered}" '
+    .AccountListResponse.Accounts.Account[]
+    | select(
+        ((.accountDesc // "") | ascii_downcase | contains($s)) or
+        ((.accountName // "") | ascii_downcase | contains($s))
+      )
+    | .accountIdKey' "${accounts_file}")
+  count=$(printf '%s\n' "${matches}" | grep -c .)
+
+  if [[ "${count}" -eq 1 ]]; then
+    printf '%s\n' "${matches}"
+    return 0
+  elif [[ "${count}" -gt 1 ]]; then
+    printf "Selector '%s' matches %s accounts; use a number or be more specific.\n" \
+           "${selector}" "${count}" >&2
+    return 1
+  fi
+
+  if [[ "${selector}" =~ ^[0-9]+$ ]]; then
+    printf "No account matches '%s' (valid numbers are 1-%s, or use an accountId).\n" \
+           "${selector}" "${num}" >&2
+  else
+    printf "No account matches '%s'. Run 'etrade acct list -r' to see identifiers.\n" \
+           "${selector}" >&2
+  fi
+  return 1
+}
+
 function list_accounts() {
   local OPTS
   OPTS=$(getopt -o r --long read-cache -- "$@")
@@ -195,10 +263,14 @@ function setup_accounts() {
 }
 
 function print_portfolio() {
-  local acct_idkey="$1"
-  if [[ -z "${acct_idkey}" ]]; then
-    printf "Error: account id key required\n\n" >&2
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
     usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
     return 1
   fi
   if ! import_secret_variables; then
@@ -214,10 +286,14 @@ function print_portfolio() {
 }
 
 function print_activity() {
-  local acct_idkey="$1"
-  if [[ -z "${acct_idkey}" ]]; then
-    printf "Error: account id key required\n\n" >&2
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
     usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
     return 1
   fi
   if ! import_secret_variables; then
@@ -237,13 +313,14 @@ function usage_acct() {
   printf "\tetrade acct {-h --help}\n"
   printf "\tetrade acct list [-r --read-cache]\n"
   printf "\tetrade acct setup\n"
-  printf "\tetrade acct [port | activity] <account_id_key>\n\n"
+  printf "\tetrade acct [port | activity] <account>\n\n"
   local subcmd_len=26
   printf "Subcommands:\n"
   printf "\t%-${subcmd_len}s - %s\n" "list"                       "Fetch account list from the API and print raw JSON"
   printf "\t%-${subcmd_len}s - %s\n" "setup"                      "Fetch accounts and interactively choose which to track for performance"
-  printf "\t%-${subcmd_len}s - %s\n" "port <account_id_key>"      "Print the portfolio for the given account"
-  printf "\t%-${subcmd_len}s - %s\n" "activity <account_id_key>"  "Print recent transactions for the given account"
+  printf "\t%-${subcmd_len}s - %s\n" "port <account>"             "Print the portfolio for the given account"
+  printf "\t%-${subcmd_len}s - %s\n" "activity <account>"         "Print recent transactions for the given account"
+  printf "\n<account> is the number from 'acct list -r', or an accountId/name/accountIdKey.\n"
   printf "\nOptions for 'list':\n"
   printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
 }
