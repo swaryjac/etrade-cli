@@ -1,5 +1,54 @@
 #!/bin/bash
 
+# Build a human-friendly display name from an account's description/nickname.
+# Falls back to the account id only when both are empty.
+function _account_display_name() {
+  local desc="$1" name="$2" acct_id="$3"
+  if [[ -n "${desc}" && -n "${name}" && "${name}" != "${desc}" ]]; then
+    printf '%s-%s' "${desc}" "${name}"
+  elif [[ -n "${desc}" ]]; then
+    printf '%s' "${desc}"
+  elif [[ -n "${name}" ]]; then
+    printf '%s' "${name}"
+  else
+    printf '%s' "${acct_id}"
+  fi
+}
+
+# Print stored accounts as a numbered table. The leading number is the account's
+# 1-based position in the stored list and is the identifier accepted by the
+# 'port', 'activity' and 'balance' subcommands.
+function _print_accounts_table() {
+  local accounts_file="$1"
+  local num
+  num=$(jq '.AccountListResponse.Accounts.Account | length' "${accounts_file}")
+
+  local -a names=() types=() ids=() trackeds=()
+  local name_width=7  # length of the "Account" header
+  local idx desc name acct_id atype tracked display
+  for ((idx = 0; idx < num; idx++)); do
+    desc=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountDesc // \"\"" "${accounts_file}")
+    name=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountName // \"\"" "${accounts_file}")
+    acct_id=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountId  // \"\"" "${accounts_file}")
+    atype=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountType  // \"\"" "${accounts_file}")
+    tracked=$(jq -r ".AccountListResponse.Accounts.Account[$idx].tracked    // false" "${accounts_file}")
+    display=$(_account_display_name "${desc}" "${name}" "${acct_id}")
+
+    names+=("${display}")
+    types+=("${atype}")
+    ids+=("${acct_id}")
+    if [[ "${tracked}" == "true" ]]; then trackeds+=("yes"); else trackeds+=("no"); fi
+    (( ${#display} > name_width )) && name_width=${#display}
+  done
+
+  printf "%3s  %-${name_width}s  %-10s  %-12s  %s\n" "#" "Account" "Type" "AccountId" "Tracked"
+  local i
+  for ((i = 0; i < num; i++)); do
+    printf "%3s  %-${name_width}s  %-10s  %-12s  %s\n" \
+      "$((i + 1))" "${names[$i]}" "${types[$i]}" "${ids[$i]}" "${trackeds[$i]}"
+  done
+}
+
 function list_accounts() {
   local OPTS
   OPTS=$(getopt -o r --long read-cache -- "$@")
@@ -25,7 +74,7 @@ function list_accounts() {
              "${accounts_file}" >&2
       return 1
     fi
-    cat "${accounts_file}"
+    _print_accounts_table "${accounts_file}"
     return
   fi
 
@@ -92,15 +141,7 @@ function setup_accounts() {
     status=$(jq -r ".AccountListResponse.Accounts.Account[$i].accountStatus // \"\"" "${response_file}")
     prior_tracked=$(echo "${prior_map}" | jq -r --arg k "${idkey}" '.[$k] // false')
 
-    if [[ -n "${desc}" && -n "${name}" && "${name}" != "${desc}" ]]; then
-      display="${desc}-${name}"
-    elif [[ -n "${desc}" ]]; then
-      display="${desc}"
-    elif [[ -n "${name}" ]]; then
-      display="${name}"
-    else
-      display="${acct_id}"
-    fi
+    display=$(_account_display_name "${desc}" "${name}" "${acct_id}")
 
     if [[ "${status}" == "CLOSED" ]]; then
       printf "Skipping closed account %s (%s)\n\n" "${display}" "${atype}"
@@ -204,7 +245,7 @@ function usage_acct() {
   printf "\t%-${subcmd_len}s - %s\n" "port <account_id_key>"      "Print the portfolio for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "activity <account_id_key>"  "Print recent transactions for the given account"
   printf "\nOptions for 'list':\n"
-  printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Read previously stored account data from data_dir instead of the API"
+  printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
 }
 
 function help_acct() {
