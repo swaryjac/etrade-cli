@@ -23,9 +23,10 @@ function _print_accounts_table() {
   local num
   num=$(jq '.AccountListResponse.Accounts.Account | length' "${accounts_file}")
 
-  local -a names=() types=() ids=() trackeds=()
-  local name_width=7  # length of the "Account" header
-  local idx desc name acct_id atype tracked display
+  local -a nums=() names=() types=() ids=() trackeds=()
+  # Seed each column width with its header so headers are never truncated.
+  local w_num=1 w_name=7 w_type=4 w_id=9 w_tracked=7
+  local idx desc name acct_id atype tracked display tr
   for ((idx = 0; idx < num; idx++)); do
     desc=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountDesc // \"\"" "${accounts_file}")
     name=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountName // \"\"" "${accounts_file}")
@@ -33,19 +34,36 @@ function _print_accounts_table() {
     atype=$(jq -r ".AccountListResponse.Accounts.Account[$idx].accountType  // \"\"" "${accounts_file}")
     tracked=$(jq -r ".AccountListResponse.Accounts.Account[$idx].tracked    // false" "${accounts_file}")
     display=$(_account_display_name "${desc}" "${name}" "${acct_id}")
+    [[ "${tracked}" == "true" ]] && tr="yes" || tr="no"
 
+    nums+=("$((idx + 1))")
     names+=("${display}")
     types+=("${atype}")
     ids+=("${acct_id}")
-    if [[ "${tracked}" == "true" ]]; then trackeds+=("yes"); else trackeds+=("no"); fi
-    (( ${#display} > name_width )) && name_width=${#display}
+    trackeds+=("${tr}")
+
+    (( ${#nums[idx]} > w_num  )) && w_num=${#nums[idx]}
+    (( ${#display}   > w_name )) && w_name=${#display}
+    (( ${#atype}     > w_type )) && w_type=${#atype}
+    (( ${#acct_id}   > w_id   )) && w_id=${#acct_id}
   done
 
-  printf "%3s  %-${name_width}s  %-10s  %-12s  %s\n" "#" "Account" "Type" "AccountId" "Tracked"
+  local fmt="%${w_num}s  %-${w_name}s  %-${w_type}s  %-${w_id}s  %s\n"
+
+  # Header followed by a dashed rule sized to each column.
+  local d_num d_name d_type d_id d_tracked
+  printf -v d_num     '%*s' "${w_num}"     ''; d_num=${d_num// /-}
+  printf -v d_name    '%*s' "${w_name}"    ''; d_name=${d_name// /-}
+  printf -v d_type    '%*s' "${w_type}"    ''; d_type=${d_type// /-}
+  printf -v d_id      '%*s' "${w_id}"      ''; d_id=${d_id// /-}
+  printf -v d_tracked '%*s' "${w_tracked}" ''; d_tracked=${d_tracked// /-}
+
+  printf "${fmt}" "#" "Account" "Type" "AccountId" "Tracked"
+  printf "${fmt}" "${d_num}" "${d_name}" "${d_type}" "${d_id}" "${d_tracked}"
+
   local i
   for ((i = 0; i < num; i++)); do
-    printf "%3s  %-${name_width}s  %-10s  %-12s  %s\n" \
-      "$((i + 1))" "${names[$i]}" "${types[$i]}" "${ids[$i]}" "${trackeds[$i]}"
+    printf "${fmt}" "${nums[$i]}" "${names[$i]}" "${types[$i]}" "${ids[$i]}" "${trackeds[$i]}"
   done
 }
 

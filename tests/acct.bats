@@ -28,30 +28,50 @@ setup() {
   [[ "$output" == *"acct setup"* ]]
 }
 
-@test "list -r: prints a header and one numbered row per account" {
+@test "list -r: prints a header, a rule, and one row per account" {
   run list_accounts -r
   [ "$status" -eq 0 ]
   [[ "${lines[0]}" == *"Account"*"Type"*"AccountId"*"Tracked"* ]]
-  # 1 header + 4 accounts in the sandbox fixture
-  [ "${#lines[@]}" -eq 5 ]
+  # header rule made of dashes
+  [[ "${lines[1]}" == "-"*"-" ]]
+  [[ "${lines[1]}" != *[![:space:]-]* ]]
+  # header + rule + 4 accounts in the sandbox fixture
+  [ "${#lines[@]}" -eq 6 ]
 }
 
 @test "list -r: numbers accounts by 1-based position" {
   run list_accounts -r
-  [[ "${lines[1]}" == "  1 "* ]]
-  [[ "${lines[2]}" == "  2 "* ]]
+  [[ "${lines[2]}" == "1  "* ]]
+  [[ "${lines[3]}" == "2  "* ]]
 }
 
 @test "list -r: row carries the account name and accountId" {
   run list_accounts -r
-  [[ "${lines[2]}" == *"Complete Savings"* ]]
-  [[ "${lines[2]}" == *"583156360"* ]]
+  [[ "${lines[3]}" == *"Complete Savings"* ]]
+  [[ "${lines[3]}" == *"583156360"* ]]
 }
 
 @test "list -r: tracked column reflects the stored flag" {
   run list_accounts -r
-  [[ "${lines[1]}" == *"yes" ]]   # active account
-  [[ "${lines[4]}" == *"no" ]]    # closed account
+  [[ "${lines[2]}" == *"yes" ]]   # first (active) account
+  [[ "${lines[5]}" == *"no" ]]    # last (closed) account
+}
+
+@test "list -r: columns stay aligned when a type is wider than its header" {
+  # accountType IRA_ROLLOVER (12 chars) exceeds the 'Type' header width; the
+  # AccountId column must still start at the same offset on every row.
+  cat > "$DATA_DIR/accounts.json" <<'JSON'
+{"AccountListResponse":{"Accounts":{"Account":[
+  {"accountDesc":"Alpha","accountId":"111111111","accountType":"IRA_ROLLOVER","tracked":true},
+  {"accountDesc":"Beta","accountId":"222222222","accountType":"ROTHIRA","tracked":false}
+]}}}
+JSON
+  run list_accounts -r
+  [ "$status" -eq 0 ]
+  local off1 off2
+  off1=$(awk '/111111111/{print index($0,"111111111")}' <<<"$output")
+  off2=$(awk '/222222222/{print index($0,"222222222")}' <<<"$output")
+  [ "$off1" = "$off2" ]
 }
 
 # ─── _resolve_account_idkey ─────────────────────────────────────────────────────
