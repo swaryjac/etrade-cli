@@ -355,6 +355,23 @@ function print_balance() {
 }
 
 function sync_account() {
+  local since="" until_date=""
+  local OPTS
+  OPTS=$(getopt -o '' --long since:,until: -- "$@")
+  if [[ $? != 0 ]]; then
+    usage_acct >&2
+    return 1
+  fi
+  eval set -- "$OPTS"
+  while true; do
+    case "$1" in
+      --since) since="$2"; shift 2 ;;
+      --until) until_date="$2"; shift 2 ;;
+      --) shift; break ;;
+      *) echo "Option Parsing Error" >&2; return 1 ;;
+    esac
+  done
+
   local selector="$1"
   if [[ -z "${selector}" ]]; then
     printf "Error: account selector required\n\n" >&2
@@ -369,17 +386,42 @@ function sync_account() {
     return 1
   fi
 
-  # Date range (MMDDYYYY). First sync backfills two years -- the API maximum;
-  # there is no way to reach older history. Later syncs start from the newest
-  # stored date (re-fetching that day is safe: ingest is idempotent).
+  # Date range (MMDDYYYY). Only ~2 years of history is available from the API;
+  # start_date can never reach older than that floor.
   local meta_file="${DATA_DIR}/transactions/${acct_idkey}.meta.json"
   local start_date end_date newest=""
-  end_date=$(date +%m%d%Y)
-  [[ -f "${meta_file}" ]] && newest=$(jq -r '.newest_seen_date // ""' "${meta_file}")
-  if [[ -n "${newest}" && "${newest}" != "null" ]]; then
-    start_date=$(date -d "${newest}" +%m%d%Y)
+  local floor_epoch
+  floor_epoch=$(date -d "2 years ago" +%s)
+
+  # --until bounds the newest end of the window (defaults to today). Useful for
+  # fetching a single bounded window for verification without paginating.
+  if [[ -n "${until_date}" ]]; then
+    if ! end_date=$(date -d "${until_date}" +%m%d%Y 2>/dev/null); then
+      printf "Error: invalid --until date '%s'\n" "${until_date}" >&2
+      return 1
+    fi
   else
-    start_date=$(date -d "2 years ago" +%m%d%Y)
+    end_date=$(date +%m%d%Y)
+  fi
+
+  # --since overrides the default start (clamped to the 2-year floor). Without it,
+  # the first sync backfills two years and later syncs resume from the newest
+  # stored date (re-fetching that day is safe: ingest is idempotent).
+  if [[ -n "${since}" ]]; then
+    local since_epoch
+    if ! since_epoch=$(date -d "${since}" +%s 2>/dev/null); then
+      printf "Error: invalid --since date '%s'\n" "${since}" >&2
+      return 1
+    fi
+    (( since_epoch < floor_epoch )) && since_epoch=${floor_epoch}
+    start_date=$(date -d "@${since_epoch}" +%m%d%Y)
+  else
+    [[ -f "${meta_file}" ]] && newest=$(jq -r '.newest_seen_date // ""' "${meta_file}")
+    if [[ -n "${newest}" && "${newest}" != "null" ]]; then
+      start_date=$(date -d "${newest}" +%m%d%Y)
+    else
+      start_date=$(date -d "@${floor_epoch}" +%m%d%Y)
+    fi
   fi
 
   printf "Syncing %s, transactions %s..%s\n" "${acct_idkey}" "${start_date}" "${end_date}" >&2
@@ -493,6 +535,10 @@ function usage_acct() {
   printf "\n<account> is the number from 'acct list -r', or an accountId/name/accountIdKey.\n"
   printf "\nOptions for 'list':\n"
   printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
+  printf "\nOptions for 'sync':\n"
+  printf "\t%-${subcmd_len}s - %s\n" "--since <date>"             "Start the fetch window at this date (clamped to the 2-year floor); overrides the watermark"
+  printf "\t%-${subcmd_len}s - %s\n" "--until <date>"             "End the fetch window at this date (default: today)"
+  printf "\t%-${subcmd_len}s   %s\n" ""                           "Dates accept any format 'date -d' understands, e.g. 2026-01-01."
 }
 
 function help_acct() {

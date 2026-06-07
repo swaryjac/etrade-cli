@@ -218,6 +218,43 @@ JSON
   [ "$status" -ne 0 ]
 }
 
+@test "sync: --since overrides the start date" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        echo "${_p[endDate]}" > "$BATS_TEST_TMPDIR/end"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since 2026-01-01 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "01012026" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/end")" = "$(date +%m%d%Y)" ]   # default
+}
+
+@test "sync: --until bounds the end date" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[endDate]}" > "$BATS_TEST_TMPDIR/end"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since 2026-01-01 --until 2026-01-31 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/end")" = "01312026" ]
+}
+
+@test "sync: --since older than two years is clamped to the floor" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since 2010-01-01 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "$(date -d '2 years ago' +%m%d%Y)" ]
+}
+
+@test "sync: rejects an invalid --since date" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since "not-a-date" 1
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid --since"* ]]
+}
+
 @test "sync: pages backward by date window until a short page" {
   mock_auth_success
 
