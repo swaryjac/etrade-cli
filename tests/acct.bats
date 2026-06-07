@@ -9,6 +9,7 @@ setup() {
   mkdir -p "$DATA_DIR"
 
   source "$PARENT_PATH/lib/common/config.sh"
+  source "$PARENT_PATH/lib/common/http_defns.sh"
   source "$PARENT_PATH/lib/acct/acct.sh"
   source "$REPO_ROOT/tests/mocks.sh"
 
@@ -166,4 +167,106 @@ JSON
   [ "$status" -ne 0 ]
   run print_balance
   [ "$status" -ne 0 ]
+}
+
+# ─── sync (fetch + Python ingest integration) ───────────────────────────────────
+
+@test "sync: fetches transactions and persists them to the journal" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account 1
+  [ "$status" -eq 0 ]
+
+  local base="$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA"
+  [ -f "$base.jsonl" ]
+  [ "$(grep -c . "$base.jsonl")" -eq 7 ]
+  run jq -r '.record_count' "$base.meta.json"
+  [ "$output" -eq 7 ]
+}
+
+@test "sync: re-running does not duplicate records" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  sync_account 1
+  run sync_account 1
+  [ "$status" -eq 0 ]
+  [ "$(grep -c . "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.jsonl")" -eq 7 ]
+}
+
+@test "sync: first run backfills from two years ago" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "$(date -d '2 years ago' +%m%d%Y)" ]
+}
+
+@test "sync: subsequent run starts from the newest stored date" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  sync_account 1                       # first run populates the watermark
+  run sync_account 1                   # second run reads it
+  [ "$status" -eq 0 ]
+  # newest date in the synthetic fixture is 2026-05-22
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "$(date -d '2026-05-22' +%m%d%Y)" ]
+}
+
+@test "sync: requires an account selector" {
+  run sync_account
+  [ "$status" -ne 0 ]
+}
+
+@test "sync: pages backward by date window until a short page" {
+  mock_auth_success
+
+  # Page A: a full window of 50 (oldest 2026-04-01). Page B: a short window of 10.
+  local pageA="$BATS_TEST_TMPDIR/A.json" pageB="$BATS_TEST_TMPDIR/B.json"
+  python3 - "$pageA" "$pageB" <<'PY'
+import json, sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+ET = ZoneInfo("America/New_York")
+def ms(y, m, d): return int(datetime(y, m, d, 12, tzinfo=ET).timestamp() * 1000)
+def rec(i, epoch): return {"transactionId": f"T{i:04d}", "transactionDate": epoch, "amount": 0,
+  "transactionType": "Sold Short", "brokerage": {"product": {"symbol": "ZZZ", "securityType": "OPTN",
+  "callPut": "PUT", "expiryYear": 26, "expiryMonth": 5, "expiryDay": 22, "strikePrice": 1},
+  "quantity": 1, "price": 0, "fee": 0}}
+A = [rec(i, ms(2026, 5, 20) - i * 1000) for i in range(49)] + [rec(49, ms(2026, 4, 1))]
+B = [rec(100 + i, ms(2026, 3, 1) - i * 1000) for i in range(10)]
+for path, arr in ((sys.argv[1], A), (sys.argv[2], B)):
+    json.dump({"TransactionListResponse": {"Transaction": arr}}, open(path, "w"))
+PY
+
+  local today; today=$(date +%m%d%Y)
+  send_etrade_query() {
+    local -n _p="$2"
+    if [ "${_p[endDate]}" = "$today" ]; then cp "$pageA" "$4"; else cp "$pageB" "$4"; fi
+  }
+
+  export ETRADE_SYNC_DEBUG_DIR="$BATS_TEST_TMPDIR/pages"
+  run sync_account 1
+  [ "$status" -eq 0 ]
+
+  # exactly two windows fetched: full page A, then short page B stops the loop
+  [ -f "$ETRADE_SYNC_DEBUG_DIR/page-0.json" ]
+  [ -f "$ETRADE_SYNC_DEBUG_DIR/page-1.json" ]
+  [ ! -f "$ETRADE_SYNC_DEBUG_DIR/page-2.json" ]
+  # the second window ends at page A's oldest date
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-1.endDate.txt")" = "$(date -d 2026-04-01 +%m%d%Y)" ]
+  # all 60 unique records are stored
+  run jq -r '.record_count' "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.meta.json"
+  [ "$output" -eq 60 ]
+}
+
+@test "sync: ETRADE_SYNC_DEBUG_DIR captures raw pages" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  export ETRADE_SYNC_DEBUG_DIR="$BATS_TEST_TMPDIR/pages"
+  run sync_account 1
+  [ "$status" -eq 0 ]
+  [ -f "$ETRADE_SYNC_DEBUG_DIR/page-0.json" ]
+  # first window ends today (MMDDYYYY)
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.endDate.txt")" = "$(date +%m%d%Y)" ]
 }

@@ -354,6 +354,109 @@ function print_balance() {
   send_etrade_query "${balance_url}" balance_params "${decoded_access_secret}"
 }
 
+function sync_account() {
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
+    usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
+    return 1
+  fi
+  if ! import_secret_variables; then
+    return 1
+  fi
+
+  # Date range (MMDDYYYY). First sync backfills two years -- the API maximum;
+  # there is no way to reach older history. Later syncs start from the newest
+  # stored date (re-fetching that day is safe: ingest is idempotent).
+  local meta_file="${DATA_DIR}/transactions/${acct_idkey}.meta.json"
+  local start_date end_date newest=""
+  end_date=$(date +%m%d%Y)
+  [[ -f "${meta_file}" ]] && newest=$(jq -r '.newest_seen_date // ""' "${meta_file}")
+  if [[ -n "${newest}" && "${newest}" != "null" ]]; then
+    start_date=$(date -d "${newest}" +%m%d%Y)
+  else
+    start_date=$(date -d "2 years ago" +%m%d%Y)
+  fi
+
+  printf "Syncing %s, transactions %s..%s\n" "${acct_idkey}" "${start_date}" "${end_date}" >&2
+
+  # Optional debugging: when ETRADE_SYNC_DEBUG_DIR is set, each raw page
+  # response (and the marker used to request it) is saved there for inspection.
+  if [[ -n "${ETRADE_SYNC_DEBUG_DIR}" ]]; then
+    mkdir -p "${ETRADE_SYNC_DEBUG_DIR}"
+    printf "Debug: saving raw pages to %s\n" "${ETRADE_SYNC_DEBUG_DIR}" >&2
+  fi
+
+  local transactions_url="https://$(etrade_api_host)/v1/accounts/${acct_idkey}/transactions.json"
+  local cursor_end="${end_date}" page n oldest_ms oldest_date
+  local -a page_files=()
+
+  # E*TRADE's pagination marker is unreliable -- it returns overlapping recent
+  # records rather than paging backward -- so page by date window instead: fetch
+  # the newest <=50 transactions in [start_date, cursor_end], then move cursor_end
+  # back to the oldest date seen and repeat until a page returns fewer than 50.
+  # The boundary day overlaps between windows, which ingest dedups. The 60-page
+  # cap bounds a single run to ~3000 transactions.
+  for ((page = 0; page < 60; page++)); do
+    local response_file
+    response_file=$(mktemp)
+    page_files+=("${response_file}")
+
+    # send_etrade_query mutates the param array (adds oauth fields), so rebuild it
+    # each window. count maxes out at 50.
+    declare -A params
+    params["oauth_token"]="${access_token}"
+    params["startDate"]="${start_date}"
+    params["endDate"]="${cursor_end}"
+    params["count"]="50"
+    params["sortOrder"]="DESC"
+
+    if ! send_etrade_query "${transactions_url}" params "${decoded_access_secret}" "${response_file}"; then
+      printf "Error: transactions request failed (window ending %s)\n" "${cursor_end}" >&2
+      if [[ -s "${response_file}" ]]; then
+        # Surface the API's reason (e.g. an oauth_problem on a 401) for diagnosis.
+        printf "Response: %s\n" "$(tr -d '\n' < "${response_file}" | head -c 600)" >&2
+      fi
+      unset params
+      rm -f "${page_files[@]}"
+      return 1
+    fi
+    unset params
+
+    if [[ -n "${ETRADE_SYNC_DEBUG_DIR}" ]]; then
+      cp "${response_file}" "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.json"
+      printf '%s' "${cursor_end}" > "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.endDate.txt"
+    fi
+
+    n=$(jq '(.TransactionListResponse.Transaction // []) | length' "${response_file}")
+    (( n == 0 )) && break
+    (( n < 50 )) && break   # short page: reached the start of the range
+
+    # Move the window back to the oldest date in this page (resolved in market
+    # time to match E*TRADE's date handling).
+    oldest_ms=$(jq '[.TransactionListResponse.Transaction[].transactionDate] | min' "${response_file}")
+    oldest_date=$(TZ=America/New_York date -d "@$(( oldest_ms / 1000 ))" +%m%d%Y)
+    # A full page all on one day can't be advanced by date alone; stop rather
+    # than loop forever.
+    [[ "${oldest_date}" == "${cursor_end}" ]] && break
+    cursor_end="${oldest_date}"
+  done
+
+  # Merge every page's Transaction array and hand the combined response to the
+  # Python ingester, which parses and persists the journal.
+  jq -s '{TransactionListResponse: {Transaction: (map(.TransactionListResponse.Transaction // []) | add // [])}}' \
+    "${page_files[@]}" \
+  | python3 "${PARENT_PATH}/lib/acct/journal.py" ingest --account "${acct_idkey}" --data-dir "${DATA_DIR}"
+  local rc=$?
+
+  rm -f "${page_files[@]}"
+  return ${rc}
+}
+
 function usage_acct() {
   printf "Usage:\n"
   printf "\tetrade acct {-h --help}\n"
@@ -367,6 +470,7 @@ function usage_acct() {
   printf "\t%-${subcmd_len}s - %s\n" "port <account>"             "Print the portfolio for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "activity <account>"         "Print recent transactions for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "balance <account>"          "Print balances (incl. available cash) for the given account"
+  printf "\t%-${subcmd_len}s - %s\n" "sync <account>"             "Fetch transactions and store them in the local journal"
   printf "\n<account> is the number from 'acct list -r', or an accountId/name/accountIdKey.\n"
   printf "\nOptions for 'list':\n"
   printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
@@ -402,6 +506,10 @@ function execute_acct() {
     balance)
       shift
       print_balance "$@"
+      ;;
+    sync)
+      shift
+      sync_account "$@"
       ;;
     -h|--help)
       help_acct
