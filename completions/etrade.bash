@@ -18,7 +18,7 @@ _etrade() {
       quote)    subs="price option batch clear" ;;
       calc)     subs="put call skew diff" ;;
       settings) subs="get set list" ;;
-      acct)     subs="list setup port activity balance sync" ;;
+      acct)     subs="list setup port activity balance sync report" ;;
     esac
     COMPREPLY=( $(compgen -W "$subs -h --help" -- "$cur") )
     return

@@ -270,3 +270,31 @@ PY
   # first window ends today (MMDDYYYY)
   [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.endDate.txt")" = "$(date +%m%d%Y)" ]
 }
+
+# ─── report (journal analytics; no API call) ────────────────────────────────────
+
+@test "report: requires an account selector" {
+  run report_account
+  [ "$status" -ne 0 ]
+}
+
+@test "report: fails cleanly when the account has no journal" {
+  run report_account 1
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no journal"* ]]
+}
+
+@test "report: prints weekly put premium CSV from the local journal" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  sync_account 1                         # populate the journal first
+
+  run report_account 1
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"week_ending,contracts,premium,cumulative_premium"* ]]
+  # synthetic fixture: one put sold 2026-05-18 -> week ending Fri 2026-05-22
+  [[ "$output" == *"2026-05-22,1,48.34,48.34"* ]]
+  # the summary reports the put as expired and the unmatched assign as an orphan
+  [[ "$output" == *"expired 1"* ]]
+  [[ "$output" == *"orphan closes"* ]]
+}

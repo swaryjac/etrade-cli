@@ -457,6 +457,24 @@ function sync_account() {
   return ${rc}
 }
 
+function report_account() {
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
+    usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
+    return 1
+  fi
+
+  # Reporting reads only the local journal written by 'sync' -- no API call or
+  # credentials are needed. The CSV goes to stdout; a summary goes to stderr.
+  python3 "${PARENT_PATH}/lib/acct/report.py" weekly \
+    --account "${acct_idkey}" --data-dir "${DATA_DIR}"
+}
+
 function usage_acct() {
   printf "Usage:\n"
   printf "\tetrade acct {-h --help}\n"
@@ -471,6 +489,7 @@ function usage_acct() {
   printf "\t%-${subcmd_len}s - %s\n" "activity <account>"         "Print recent transactions for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "balance <account>"          "Print balances (incl. available cash) for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "sync <account>"             "Fetch transactions and store them in the local journal"
+  printf "\t%-${subcmd_len}s - %s\n" "report <account>"           "Report weekly put premium income from the local journal (CSV)"
   printf "\n<account> is the number from 'acct list -r', or an accountId/name/accountIdKey.\n"
   printf "\nOptions for 'list':\n"
   printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
@@ -510,6 +529,10 @@ function execute_acct() {
     sync)
       shift
       sync_account "$@"
+      ;;
+    report)
+      shift
+      report_account "$@"
       ;;
     -h|--help)
       help_acct
