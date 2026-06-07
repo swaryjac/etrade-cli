@@ -434,15 +434,22 @@ function sync_account() {
   fi
 
   local transactions_url="https://$(etrade_api_host)/v1/accounts/${acct_idkey}/transactions.json"
-  local cursor_end="${end_date}" page n oldest_ms oldest_date
+  local cursor_end="${end_date}" page n boundary_ms boundary_date
   local -a page_files=()
 
   # E*TRADE's pagination marker is unreliable -- it returns overlapping recent
   # records rather than paging backward -- so page by date window instead: fetch
   # the newest <=50 transactions in [start_date, cursor_end], then move cursor_end
-  # back to the oldest date seen and repeat until a page returns fewer than 50.
-  # The boundary day overlaps between windows, which ingest dedups. The 60-page
-  # cap bounds a single run to ~3000 transactions.
+  # back and repeat until a page returns fewer than 50. The boundary day overlaps
+  # between windows, which ingest dedups. The 60-page cap bounds a run to ~3000.
+  #
+  # CRITICAL: the API sorts a page by transactionId DESC (NOT by transactionDate)
+  # but filters the window by transactionDate. Those orders do not agree -- a
+  # record can have an older date yet a higher id, landing mid-page. So advance
+  # the window using the transactionDate of the LAST record in the page (the
+  # smallest id = the API's true pagination boundary), not min(transactionDate).
+  # Using the min would set endDate to that stray older date and permanently skip
+  # the records just past the id boundary whose date is newer than it.
   for ((page = 0; page < 60; page++)); do
     local response_file
     response_file=$(mktemp)
@@ -478,14 +485,15 @@ function sync_account() {
     (( n == 0 )) && break
     (( n < 50 )) && break   # short page: reached the start of the range
 
-    # Move the window back to the oldest date in this page (resolved in market
-    # time to match E*TRADE's date handling).
-    oldest_ms=$(jq '[.TransactionListResponse.Transaction[].transactionDate] | min' "${response_file}")
-    oldest_date=$(TZ=America/New_York date -d "@$(( oldest_ms / 1000 ))" +%m%d%Y)
-    # A full page all on one day can't be advanced by date alone; stop rather
-    # than loop forever.
-    [[ "${oldest_date}" == "${cursor_end}" ]] && break
-    cursor_end="${oldest_date}"
+    # Advance to the date of the LAST record in the page -- the smallest-id record,
+    # which is the API's pagination boundary (it sorts by id DESC). Resolved in
+    # market time to match E*TRADE's date filtering.
+    boundary_ms=$(jq '.TransactionListResponse.Transaction[-1].transactionDate' "${response_file}")
+    boundary_date=$(TZ=America/New_York date -d "@$(( boundary_ms / 1000 ))" +%m%d%Y)
+    # A full page whose boundary stays on cursor_end can't be advanced by date
+    # alone (a single day with >50 records); stop rather than loop forever.
+    [[ "${boundary_date}" == "${cursor_end}" ]] && break
+    cursor_end="${boundary_date}"
   done
 
   # Merge every page's Transaction array and hand the combined response to the
