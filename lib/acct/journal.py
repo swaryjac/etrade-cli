@@ -21,105 +21,17 @@ import os
 import sys
 from datetime import datetime, timezone
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
-# E*TRADE transaction timestamps are in US Eastern; the date portion is what the
-# journal keys on, so resolve epochs in that zone to match brokerage trade dates.
-_MARKET_TZ = ZoneInfo("America/New_York")
-
-# securityType -> instrument type
-_INSTRUMENT_TYPE = {"OPTN": "OPTION", "EQ": "STOCK"}
-
-# (transactionType) -> action, with Bought/Sold disambiguated by security type.
-_ACTION_BY_TYPE = {
-    "Option Assigned": "ASSIGN",
-    "Option Expired": "EXPIRE",
-    "Interest Income": "INTEREST",
-    "Qualified Dividend": "DIVIDEND",
-    "Dividend": "DIVIDEND",
-    "Transfer": "TRANSFER",
-    "Fee": "FEE",
-}
-
-
-def _to_date(epoch):
-    """Normalize an E*TRADE epoch timestamp to a YYYY-MM-DD market date.
-
-    Production uses milliseconds (13 digits); the sandbox uses seconds.
-    """
-    if not epoch:
-        return None
-    epoch = int(epoch)
-    seconds = epoch / 1000 if epoch > 1_000_000_000_000 else epoch
-    return datetime.fromtimestamp(seconds, _MARKET_TZ).date().isoformat()
-
-
-def _expiry(product):
-    """Assemble a full expiry date from the two-digit year + month + day."""
-    year, month, day = (
-        product.get("expiryYear"),
-        product.get("expiryMonth"),
-        product.get("expiryDay"),
-    )
-    if not (year and month and day):
-        return None
-    if year < 100:
-        year += 2000
-    return f"{year:04d}-{int(month):02d}-{int(day):02d}"
-
-
-def _classify_action(transaction_type, security_type):
-    if transaction_type in _ACTION_BY_TYPE:
-        return _ACTION_BY_TYPE[transaction_type]
-    if transaction_type == "Sold Short":
-        return "SELL_TO_OPEN"
-    if transaction_type == "Bought To Cover":
-        return "BUY_TO_CLOSE"
-    if transaction_type in ("Bought", "Sold"):
-        opening = transaction_type == "Bought"
-        if security_type == "OPTN":
-            return "BUY_TO_OPEN" if opening else "SELL_TO_CLOSE"
-        return "BUY" if opening else "SELL"
-    # Preserve unknown types verbatim (uppercased) rather than dropping them;
-    # the original is always available under "raw".
-    return (transaction_type or "UNKNOWN").upper().replace(" ", "_")
-
-
-def _str(value):
-    """Stringify a numeric value losslessly, or pass through None."""
-    return None if value is None else str(value)
+from model import Transaction
 
 
 def parse_transaction(txn):
-    """Parse one E*TRADE transaction into a journal record (raw kept intact)."""
-    brokerage = txn.get("brokerage") or {}
-    product = brokerage.get("product") or {}
-    security_type = product.get("securityType")
-    instrument_type = _INSTRUMENT_TYPE.get(security_type, "CASH")
+    """Parse one E*TRADE transaction into a journal record (raw kept intact).
 
-    instrument = {"type": instrument_type, "symbol": product.get("symbol") or None}
-    if instrument_type == "OPTION":
-        instrument["option"] = {
-            "callPut": product.get("callPut"),
-            "strike": _str(product.get("strikePrice")),
-            "expiry": _expiry(product),
-        }
-
-    description = (txn.get("description") or "").strip() or None
-
-    return {
-        "transaction_id": str(txn.get("transactionId")),
-        "date": _to_date(txn.get("transactionDate")),
-        "action": _classify_action(txn.get("transactionType"), security_type),
-        "instrument": instrument,
-        "qty": _str(brokerage.get("quantity")),
-        "price": _str(brokerage.get("price")),
-        "fee": _str(brokerage.get("fee")),
-        "amount": _str(txn.get("amount")),
-        "transaction_type": txn.get("transactionType"),
-        "description": description,
-        "raw": txn,
-    }
+    The schema lives in `model.Transaction`; this is just the persistence-side
+    convenience that parses and immediately serializes to the on-disk record.
+    """
+    return Transaction.from_etrade(txn).to_record()
 
 
 def _transactions(response):
