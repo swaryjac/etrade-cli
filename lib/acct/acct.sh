@@ -354,6 +354,182 @@ function print_balance() {
   send_etrade_query "${balance_url}" balance_params "${decoded_access_secret}"
 }
 
+function sync_account() {
+  local since="" until_date=""
+  local OPTS
+  OPTS=$(getopt -o '' --long since:,until: -- "$@")
+  if [[ $? != 0 ]]; then
+    usage_acct >&2
+    return 1
+  fi
+  eval set -- "$OPTS"
+  while true; do
+    case "$1" in
+      --since) since="$2"; shift 2 ;;
+      --until) until_date="$2"; shift 2 ;;
+      --) shift; break ;;
+      *) echo "Option Parsing Error" >&2; return 1 ;;
+    esac
+  done
+
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
+    usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
+    return 1
+  fi
+  if ! import_secret_variables; then
+    return 1
+  fi
+
+  # Date range (MMDDYYYY). Only ~2 years of history is available from the API;
+  # start_date can never reach older than that floor.
+  local meta_file="${DATA_DIR}/transactions/${acct_idkey}.meta.json"
+  local start_date end_date newest=""
+  local floor_epoch
+  floor_epoch=$(date -d "2 years ago" +%s)
+
+  # --until bounds the newest end of the window (defaults to today). Useful for
+  # fetching a single bounded window for verification without paginating.
+  if [[ -n "${until_date}" ]]; then
+    if ! end_date=$(date -d "${until_date}" +%m%d%Y 2>/dev/null); then
+      printf "Error: invalid --until date '%s'\n" "${until_date}" >&2
+      return 1
+    fi
+  else
+    end_date=$(date +%m%d%Y)
+  fi
+
+  # --since overrides the default start (clamped to the 2-year floor). Without it,
+  # the first sync backfills two years and later syncs resume from the newest
+  # stored date (re-fetching that day is safe: ingest is idempotent).
+  if [[ -n "${since}" ]]; then
+    local since_epoch
+    if ! since_epoch=$(date -d "${since}" +%s 2>/dev/null); then
+      printf "Error: invalid --since date '%s'\n" "${since}" >&2
+      return 1
+    fi
+    (( since_epoch < floor_epoch )) && since_epoch=${floor_epoch}
+    start_date=$(date -d "@${since_epoch}" +%m%d%Y)
+  else
+    [[ -f "${meta_file}" ]] && newest=$(jq -r '.newest_seen_date // ""' "${meta_file}")
+    if [[ -n "${newest}" && "${newest}" != "null" ]]; then
+      start_date=$(date -d "${newest}" +%m%d%Y)
+    else
+      start_date=$(date -d "@${floor_epoch}" +%m%d%Y)
+    fi
+  fi
+
+  printf "Syncing %s, transactions %s..%s\n" "${acct_idkey}" "${start_date}" "${end_date}" >&2
+
+  # Optional debugging: when ETRADE_SYNC_DEBUG_DIR is set, each raw page
+  # response (and the marker used to request it) is saved there for inspection.
+  if [[ -n "${ETRADE_SYNC_DEBUG_DIR}" ]]; then
+    mkdir -p "${ETRADE_SYNC_DEBUG_DIR}"
+    printf "Debug: saving raw pages to %s\n" "${ETRADE_SYNC_DEBUG_DIR}" >&2
+  fi
+
+  local transactions_url="https://$(etrade_api_host)/v1/accounts/${acct_idkey}/transactions.json"
+  local marker="" page n next_marker
+  local -a page_files=()
+
+  # Paginate with E*TRADE's id-based cursor, NOT a date window. The API sorts a
+  # page by transactionId DESC but filters by transactionDate, and those orders
+  # do not agree: a record can have an older date yet a higher id, landing
+  # mid-page. A date-based cursor (advancing endDate to a page-boundary date)
+  # therefore skips the records whose id is past the boundary but whose date is
+  # older than it -- they get cut from the page by the count limit and filtered
+  # out of the next window by endDate. That permanently dropped same-day records
+  # at page boundaries (confirmed against real dumps: the 2026-01-20 UUUU put
+  # sale, id 864100, fell into the gap between a page ending at id 864101 and the
+  # next window ending one day earlier).
+  #
+  # Each response instead carries `marker` ("<transactionId>_<epoch>") -- the
+  # true continuation point -- plus a `next` URL that is present on every page
+  # except the last. We hold startDate/endDate fixed (mirroring E*TRADE's own
+  # `next` link, which repeats them alongside the marker) and follow the marker
+  # until `next` is gone. NOTE: `moreTransactions` is ALWAYS false even when more
+  # pages exist -- do NOT use it to terminate. The 200-page cap bounds a run to
+  # ~10000 transactions.
+  for ((page = 0; page < 200; page++)); do
+    local response_file
+    response_file=$(mktemp)
+    page_files+=("${response_file}")
+
+    # send_etrade_query mutates the param array (adds oauth fields), so rebuild it
+    # each page. count maxes out at 50; marker continues from the prior page.
+    declare -A params
+    params["oauth_token"]="${access_token}"
+    params["startDate"]="${start_date}"
+    params["endDate"]="${end_date}"
+    params["count"]="50"
+    params["sortOrder"]="DESC"
+    [[ -n "${marker}" ]] && params["marker"]="${marker}"
+
+    if ! send_etrade_query "${transactions_url}" params "${decoded_access_secret}" "${response_file}"; then
+      printf "Error: transactions request failed (page %s, marker %s)\n" "${page}" "${marker:-<none>}" >&2
+      if [[ -s "${response_file}" ]]; then
+        # Surface the API's reason (e.g. an oauth_problem on a 401) for diagnosis.
+        printf "Response: %s\n" "$(tr -d '\n' < "${response_file}" | head -c 600)" >&2
+      fi
+      unset params
+      rm -f "${page_files[@]}"
+      return 1
+    fi
+    unset params
+
+    if [[ -n "${ETRADE_SYNC_DEBUG_DIR}" ]]; then
+      cp "${response_file}" "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.json"
+      printf '%s' "${marker:-<none>}" > "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.marker.txt"
+    fi
+
+    n=$(jq '(.TransactionListResponse.Transaction // []) | length' "${response_file}")
+    (( n == 0 )) && break
+
+    # The next cursor is this response's marker -- but only when a `next` link is
+    # also present. The final page omits `next`; following its marker (if any)
+    # would re-request the last page forever, so stop instead.
+    next_marker=$(jq -r 'if (.TransactionListResponse.next // "") == "" then "" else (.TransactionListResponse.marker // "") end' "${response_file}")
+    [[ -z "${next_marker}" ]] && break
+    marker="${next_marker}"
+  done
+  if (( page >= 200 )); then
+    printf "Warning: hit the 200-page pagination cap; the journal may be incomplete.\n" >&2
+  fi
+
+  # Merge every page's Transaction array and hand the combined response to the
+  # Python ingester, which parses and persists the journal.
+  jq -s '{TransactionListResponse: {Transaction: (map(.TransactionListResponse.Transaction // []) | add // [])}}' \
+    "${page_files[@]}" \
+  | python3 "${PARENT_PATH}/lib/acct/journal.py" ingest --account "${acct_idkey}" --data-dir "${DATA_DIR}"
+  local rc=$?
+
+  rm -f "${page_files[@]}"
+  return ${rc}
+}
+
+function report_account() {
+  local selector="$1"
+  if [[ -z "${selector}" ]]; then
+    printf "Error: account selector required\n\n" >&2
+    usage_acct >&2
+    return 1
+  fi
+  local acct_idkey
+  if ! acct_idkey=$(_resolve_account_idkey "${selector}"); then
+    return 1
+  fi
+
+  # Reporting reads only the local journal written by 'sync' -- no API call or
+  # credentials are needed. The CSV goes to stdout; a summary goes to stderr.
+  python3 "${PARENT_PATH}/lib/acct/report.py" weekly \
+    --account "${acct_idkey}" --data-dir "${DATA_DIR}"
+}
+
 function usage_acct() {
   printf "Usage:\n"
   printf "\tetrade acct {-h --help}\n"
@@ -367,9 +543,15 @@ function usage_acct() {
   printf "\t%-${subcmd_len}s - %s\n" "port <account>"             "Print the portfolio for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "activity <account>"         "Print recent transactions for the given account"
   printf "\t%-${subcmd_len}s - %s\n" "balance <account>"          "Print balances (incl. available cash) for the given account"
+  printf "\t%-${subcmd_len}s - %s\n" "sync <account>"             "Fetch transactions and store them in the local journal"
+  printf "\t%-${subcmd_len}s - %s\n" "report <account>"           "Report weekly put premium income from the local journal (CSV)"
   printf "\n<account> is the number from 'acct list -r', or an accountId/name/accountIdKey.\n"
   printf "\nOptions for 'list':\n"
   printf "\t%-${subcmd_len}s - %s\n" "-r --read-cache"            "Print stored accounts as a numbered table from data_dir (no API call)"
+  printf "\nOptions for 'sync':\n"
+  printf "\t%-${subcmd_len}s - %s\n" "--since <date>"             "Start the fetch window at this date (clamped to the 2-year floor); overrides the watermark"
+  printf "\t%-${subcmd_len}s - %s\n" "--until <date>"             "End the fetch window at this date (default: today)"
+  printf "\t%-${subcmd_len}s   %s\n" ""                           "Dates accept any format 'date -d' understands, e.g. 2026-01-01."
 }
 
 function help_acct() {
@@ -402,6 +584,14 @@ function execute_acct() {
     balance)
       shift
       print_balance "$@"
+      ;;
+    sync)
+      shift
+      sync_account "$@"
+      ;;
+    report)
+      shift
+      report_account "$@"
       ;;
     -h|--help)
       help_acct

@@ -9,6 +9,7 @@ setup() {
   mkdir -p "$DATA_DIR"
 
   source "$PARENT_PATH/lib/common/config.sh"
+  source "$PARENT_PATH/lib/common/http_defns.sh"
   source "$PARENT_PATH/lib/acct/acct.sh"
   source "$REPO_ROOT/tests/mocks.sh"
 
@@ -166,4 +167,203 @@ JSON
   [ "$status" -ne 0 ]
   run print_balance
   [ "$status" -ne 0 ]
+}
+
+# ─── sync (fetch + Python ingest integration) ───────────────────────────────────
+
+@test "sync: fetches transactions and persists them to the journal" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account 1
+  [ "$status" -eq 0 ]
+
+  local base="$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA"
+  [ -f "$base.jsonl" ]
+  [ "$(grep -c . "$base.jsonl")" -eq 7 ]
+  run jq -r '.record_count' "$base.meta.json"
+  [ "$output" -eq 7 ]
+}
+
+@test "sync: re-running does not duplicate records" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  sync_account 1
+  run sync_account 1
+  [ "$status" -eq 0 ]
+  [ "$(grep -c . "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.jsonl")" -eq 7 ]
+}
+
+@test "sync: first run backfills from two years ago" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "$(date -d '2 years ago' +%m%d%Y)" ]
+}
+
+@test "sync: subsequent run starts from the newest stored date" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  sync_account 1                       # first run populates the watermark
+  run sync_account 1                   # second run reads it
+  [ "$status" -eq 0 ]
+  # newest date in the synthetic fixture is 2026-05-22
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "$(date -d '2026-05-22' +%m%d%Y)" ]
+}
+
+@test "sync: requires an account selector" {
+  run sync_account
+  [ "$status" -ne 0 ]
+}
+
+@test "sync: --since overrides the start date" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        echo "${_p[endDate]}" > "$BATS_TEST_TMPDIR/end"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since 2026-01-01 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "01012026" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/end")" = "$(date +%m%d%Y)" ]   # default
+}
+
+@test "sync: --until bounds the end date" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[endDate]}" > "$BATS_TEST_TMPDIR/end"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since 2026-01-01 --until 2026-01-31 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/end")" = "01312026" ]
+}
+
+@test "sync: --since older than two years is clamped to the floor" {
+  mock_auth_success
+  send_etrade_query() { local -n _p="$2"; echo "${_p[startDate]}" > "$BATS_TEST_TMPDIR/start"
+                        cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since 2010-01-01 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/start")" = "$(date -d '2 years ago' +%m%d%Y)" ]
+}
+
+@test "sync: rejects an invalid --since date" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  run sync_account --since "not-a-date" 1
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid --since"* ]]
+}
+
+@test "sync: pages by marker until the API drops the next link" {
+  mock_auth_success
+
+  # 60 records in the window. With count=50 the API returns page 0 (the 50
+  # highest ids) plus a marker and a next link; page 1 (requested with page 0's
+  # marker) returns the rest and omits next, stopping the loop. The pages overlap
+  # by one record (the marker), which ingest dedups.
+  local data="$BATS_TEST_TMPDIR/dataset.json"
+  python3 - "$data" <<'PY'
+import json, sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+ET = ZoneInfo("America/New_York")
+def ms(y, m, d): return int(datetime(y, m, d, 12, tzinfo=ET).timestamp() * 1000)
+def rec(i, epoch): return {"transactionId": f"{1000 + i}", "transactionDate": epoch, "amount": 0,
+  "transactionType": "Sold Short", "brokerage": {"product": {"symbol": "ZZZ", "securityType": "OPTN",
+  "callPut": "PUT", "expiryYear": 26, "expiryMonth": 5, "expiryDay": 22, "strikePrice": 1},
+  "quantity": 1, "price": 0, "fee": 0}}
+recs = [rec(i, ms(2026, 5, 20) - i * 86400000) for i in range(60)]
+json.dump(recs, open(sys.argv[1], "w"))
+PY
+  mock_marker_api "$data"
+
+  export ETRADE_SYNC_DEBUG_DIR="$BATS_TEST_TMPDIR/pages"
+  run sync_account --since 2024-01-01 1
+  [ "$status" -eq 0 ]
+
+  # exactly two pages fetched: page 0 carries next, page 1 does not
+  [ -f "$ETRADE_SYNC_DEBUG_DIR/page-0.json" ]
+  [ -f "$ETRADE_SYNC_DEBUG_DIR/page-1.json" ]
+  [ ! -f "$ETRADE_SYNC_DEBUG_DIR/page-2.json" ]
+  # page 0 is requested with no marker; page 1 carries page 0's marker
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.marker.txt")" = "<none>" ]
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-1.marker.txt")" = "$(jq -r '.TransactionListResponse.marker' "$ETRADE_SYNC_DEBUG_DIR/page-0.json")" ]
+  # all 60 unique records are stored (the one-record page overlap is deduped)
+  run jq -r '.record_count' "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.meta.json"
+  [ "$output" -eq 60 ]
+}
+
+@test "sync: recovers same-day records the date-window cursor dropped" {
+  mock_auth_success
+
+  # Reproduce the real drop: E*TRADE sorts a page by transactionId DESC but
+  # filters the window by transactionDate, and the two orders disagree. A high-id
+  # record with an OLD date lands mid-page, so a date-based cursor steps the
+  # window past the lowest-id same-day records (the 2026-01-20 id-800000..4
+  # straddle) and drops them. Marker pagination keys purely on id, never crossing
+  # a date boundary, so every record survives.
+  local data="$BATS_TEST_TMPDIR/dataset.json"
+  python3 - "$data" <<'PY'
+import json, sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+ET = ZoneInfo("America/New_York")
+def ms(y, m, d, h=12, mi=0, s=0): return int(datetime(y, m, d, h, mi, s, tzinfo=ET).timestamp()*1000)
+def rec(tid, epoch): return {"transactionId": str(tid), "transactionDate": epoch, "amount": 0,
+  "transactionType": "Sold Short", "brokerage": {"product": {"symbol": "ZZZ", "securityType": "OPTN",
+  "callPut": "PUT", "expiryYear": 26, "expiryMonth": 5, "expiryDay": 22, "strikePrice": 1},
+  "quantity": 1, "price": 0, "fee": 0}}
+recs  = [rec(900000 + k, ms(2026, 3, 1) + k*1000) for k in range(46)]  # newest dates, highest ids
+recs += [rec(800500, ms(2026, 1, 19))]                                  # OLD date, middle id (the scramble)
+recs += [rec(800000 + k, ms(2026, 1, 20, 10, 0, k)) for k in range(5)]  # 01-20, lowest ids (straddle boundary)
+json.dump(recs, open(sys.argv[1], "w"))
+PY
+  mock_marker_api "$data"
+
+  run sync_account --since 2024-01-01 1
+  [ "$status" -eq 0 ]
+  # All 52 records must be stored -- including the lowest-id 2026-01-20 records
+  # that the old date-window cursor dropped at the page boundary.
+  run jq -r '.record_count' "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.meta.json"
+  [ "$output" -eq 52 ]
+}
+
+@test "sync: ETRADE_SYNC_DEBUG_DIR captures raw pages" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  export ETRADE_SYNC_DEBUG_DIR="$BATS_TEST_TMPDIR/pages"
+  run sync_account 1
+  [ "$status" -eq 0 ]
+  [ -f "$ETRADE_SYNC_DEBUG_DIR/page-0.json" ]
+  # the first page is requested with no marker
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.marker.txt")" = "<none>" ]
+}
+
+# ─── report (journal analytics; no API call) ────────────────────────────────────
+
+@test "report: requires an account selector" {
+  run report_account
+  [ "$status" -ne 0 ]
+}
+
+@test "report: fails cleanly when the account has no journal" {
+  run report_account 1
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no journal"* ]]
+}
+
+@test "report: prints weekly put premium CSV from the local journal" {
+  mock_auth_success
+  send_etrade_query() { cp "$FIXTURES_DIR/transactions_response.json" "$4"; }
+  sync_account 1                         # populate the journal first
+
+  run report_account 1
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"week_ending,contracts,premium,cumulative_premium"* ]]
+  # synthetic fixture: one put sold 2026-05-18 -> week ending Fri 2026-05-22
+  [[ "$output" == *"2026-05-22,1,48.34,48.34"* ]]
+  # the summary reports the put as expired and the unmatched assign as an orphan
+  [[ "$output" == *"expired 1"* ]]
+  [[ "$output" == *"orphan closes"* ]]
 }

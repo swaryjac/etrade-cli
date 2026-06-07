@@ -154,7 +154,9 @@ function send_etrade_query() {
   local http_method=GET
 
   local timestamp=$(date +%s)
-  local nonce=$(date +%s%N | openssl base64 | sed -e 's/[+=/]//g')
+  # A high-entropy random nonce (128 bits, hex). The previous time-based nonce
+  # could collide across rapid requests and trip E*TRADE's oauth_problem=nonce_used.
+  local nonce=$(openssl rand -hex 16)
 
   query_param_array["oauth_consumer_key"]="${key_value}"
   query_param_array["oauth_nonce"]="${nonce}"
