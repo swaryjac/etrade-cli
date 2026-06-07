@@ -2,4 +2,5 @@
 *.csv
 *.ods
 *.json
-!tests/fixtures/*.json
+!tests/fixtures/**/*.json
+__pycache__/
