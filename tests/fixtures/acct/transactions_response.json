@@ -1,0 +1,160 @@
+{
+  "TransactionListResponse": {
+    "transactionCount": 7,
+    "totalCount": 7,
+    "Transaction": [
+      {
+        "transactionId": "90000000000001",
+        "accountId": "000000000",
+        "transactionDate": 1779120000000,
+        "postDate": 0,
+        "amount": 48.34,
+        "transactionType": "Sold Short",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {
+            "symbol": "ZZZ",
+            "securityType": "OPTN",
+            "callPut": "PUT",
+            "expiryYear": 26,
+            "expiryMonth": 5,
+            "expiryDay": 22,
+            "strikePrice": 12.50
+          },
+          "quantity": 1,
+          "price": 0.49,
+          "fee": 0.66,
+          "settlementCurrency": "USD"
+        },
+        "description": "PUT ZZZ 05/22/26 12.500"
+      },
+      {
+        "transactionId": "90000000000002",
+        "accountId": "000000000",
+        "transactionDate": 1779465600000,
+        "postDate": 0,
+        "amount": 0,
+        "transactionType": "Option Expired",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {
+            "symbol": "ZZZ",
+            "securityType": "OPTN",
+            "callPut": "PUT",
+            "expiryYear": 26,
+            "expiryMonth": 5,
+            "expiryDay": 22,
+            "strikePrice": 12.50
+          },
+          "quantity": 1,
+          "price": 0,
+          "fee": 0,
+          "settlementCurrency": "USD"
+        },
+        "description": "PUT ZZZ 05/22/26 12.500"
+      },
+      {
+        "transactionId": "90000000000003",
+        "accountId": "000000000",
+        "transactionDate": 1778860800000,
+        "postDate": 0,
+        "amount": 0,
+        "transactionType": "Option Assigned",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {
+            "symbol": "QQX",
+            "securityType": "OPTN",
+            "callPut": "PUT",
+            "expiryYear": 26,
+            "expiryMonth": 5,
+            "expiryDay": 15,
+            "strikePrice": 19.00
+          },
+          "quantity": 1,
+          "price": 0,
+          "fee": 0,
+          "settlementCurrency": "USD"
+        },
+        "description": "PUT QQX 05/15/26 19.000"
+      },
+      {
+        "transactionId": "90000000000004",
+        "accountId": "000000000",
+        "transactionDate": 1778860800000,
+        "postDate": 0,
+        "amount": 1899.94,
+        "transactionType": "Sold",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {
+            "symbol": "QQX",
+            "securityType": "EQ"
+          },
+          "quantity": -100,
+          "price": 19,
+          "fee": 0,
+          "settlementCurrency": "USD"
+        },
+        "description": "QQX CALL ASN UNSOLICITED TRADE"
+      },
+      {
+        "transactionId": "90000000000005",
+        "accountId": "000000000",
+        "transactionDate": 1777651200000,
+        "postDate": 0,
+        "amount": 0.12,
+        "transactionType": "Interest Income",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {
+            "symbol": "",
+            "securityType": "MMF"
+          },
+          "quantity": 0,
+          "price": 0,
+          "fee": 0,
+          "settlementCurrency": "USD"
+        },
+        "description": "INTEREST ON CREDIT BALANCE"
+      },
+      {
+        "transactionId": "90000000000006",
+        "accountId": "000000000",
+        "transactionDate": 1777564800000,
+        "postDate": 0,
+        "amount": 3.5,
+        "transactionType": "Qualified Dividend",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {
+            "symbol": "QQX",
+            "securityType": "EQ"
+          },
+          "quantity": 0,
+          "price": 0,
+          "fee": 0,
+          "settlementCurrency": "USD"
+        },
+        "description": "QQX QUALIFIED DIVIDEND"
+      },
+      {
+        "transactionId": "90000000000007",
+        "accountId": "000000000",
+        "transactionDate": 1776268800,
+        "postDate": 0,
+        "amount": -25.0,
+        "transactionType": "Transfer",
+        "instType": "BROKERAGE",
+        "brokerage": {
+          "product": {},
+          "quantity": 0,
+          "price": 0,
+          "fee": 0,
+          "settlementCurrency": "USD"
+        },
+        "description": "ACH WITHDRAWAL"
+      }
+    ]
+  }
+}
