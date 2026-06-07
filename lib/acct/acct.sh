@@ -434,38 +434,44 @@ function sync_account() {
   fi
 
   local transactions_url="https://$(etrade_api_host)/v1/accounts/${acct_idkey}/transactions.json"
-  local cursor_end="${end_date}" page n boundary_ms boundary_date
+  local marker="" page n next_marker
   local -a page_files=()
 
-  # E*TRADE's pagination marker is unreliable -- it returns overlapping recent
-  # records rather than paging backward -- so page by date window instead: fetch
-  # the newest <=50 transactions in [start_date, cursor_end], then move cursor_end
-  # back and repeat until a page returns fewer than 50. The boundary day overlaps
-  # between windows, which ingest dedups. The 60-page cap bounds a run to ~3000.
+  # Paginate with E*TRADE's id-based cursor, NOT a date window. The API sorts a
+  # page by transactionId DESC but filters by transactionDate, and those orders
+  # do not agree: a record can have an older date yet a higher id, landing
+  # mid-page. A date-based cursor (advancing endDate to a page-boundary date)
+  # therefore skips the records whose id is past the boundary but whose date is
+  # older than it -- they get cut from the page by the count limit and filtered
+  # out of the next window by endDate. That permanently dropped same-day records
+  # at page boundaries (confirmed against real dumps: the 2026-01-20 UUUU put
+  # sale, id 864100, fell into the gap between a page ending at id 864101 and the
+  # next window ending one day earlier).
   #
-  # CRITICAL: the API sorts a page by transactionId DESC (NOT by transactionDate)
-  # but filters the window by transactionDate. Those orders do not agree -- a
-  # record can have an older date yet a higher id, landing mid-page. So advance
-  # the window using the transactionDate of the LAST record in the page (the
-  # smallest id = the API's true pagination boundary), not min(transactionDate).
-  # Using the min would set endDate to that stray older date and permanently skip
-  # the records just past the id boundary whose date is newer than it.
-  for ((page = 0; page < 60; page++)); do
+  # Each response instead carries `marker` ("<transactionId>_<epoch>") -- the
+  # true continuation point -- plus a `next` URL that is present on every page
+  # except the last. We hold startDate/endDate fixed (mirroring E*TRADE's own
+  # `next` link, which repeats them alongside the marker) and follow the marker
+  # until `next` is gone. NOTE: `moreTransactions` is ALWAYS false even when more
+  # pages exist -- do NOT use it to terminate. The 200-page cap bounds a run to
+  # ~10000 transactions.
+  for ((page = 0; page < 200; page++)); do
     local response_file
     response_file=$(mktemp)
     page_files+=("${response_file}")
 
     # send_etrade_query mutates the param array (adds oauth fields), so rebuild it
-    # each window. count maxes out at 50.
+    # each page. count maxes out at 50; marker continues from the prior page.
     declare -A params
     params["oauth_token"]="${access_token}"
     params["startDate"]="${start_date}"
-    params["endDate"]="${cursor_end}"
+    params["endDate"]="${end_date}"
     params["count"]="50"
     params["sortOrder"]="DESC"
+    [[ -n "${marker}" ]] && params["marker"]="${marker}"
 
     if ! send_etrade_query "${transactions_url}" params "${decoded_access_secret}" "${response_file}"; then
-      printf "Error: transactions request failed (window ending %s)\n" "${cursor_end}" >&2
+      printf "Error: transactions request failed (page %s, marker %s)\n" "${page}" "${marker:-<none>}" >&2
       if [[ -s "${response_file}" ]]; then
         # Surface the API's reason (e.g. an oauth_problem on a 401) for diagnosis.
         printf "Response: %s\n" "$(tr -d '\n' < "${response_file}" | head -c 600)" >&2
@@ -478,23 +484,22 @@ function sync_account() {
 
     if [[ -n "${ETRADE_SYNC_DEBUG_DIR}" ]]; then
       cp "${response_file}" "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.json"
-      printf '%s' "${cursor_end}" > "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.endDate.txt"
+      printf '%s' "${marker:-<none>}" > "${ETRADE_SYNC_DEBUG_DIR}/page-${page}.marker.txt"
     fi
 
     n=$(jq '(.TransactionListResponse.Transaction // []) | length' "${response_file}")
     (( n == 0 )) && break
-    (( n < 50 )) && break   # short page: reached the start of the range
 
-    # Advance to the date of the LAST record in the page -- the smallest-id record,
-    # which is the API's pagination boundary (it sorts by id DESC). Resolved in
-    # market time to match E*TRADE's date filtering.
-    boundary_ms=$(jq '.TransactionListResponse.Transaction[-1].transactionDate' "${response_file}")
-    boundary_date=$(TZ=America/New_York date -d "@$(( boundary_ms / 1000 ))" +%m%d%Y)
-    # A full page whose boundary stays on cursor_end can't be advanced by date
-    # alone (a single day with >50 records); stop rather than loop forever.
-    [[ "${boundary_date}" == "${cursor_end}" ]] && break
-    cursor_end="${boundary_date}"
+    # The next cursor is this response's marker -- but only when a `next` link is
+    # also present. The final page omits `next`; following its marker (if any)
+    # would re-request the last page forever, so stop instead.
+    next_marker=$(jq -r 'if (.TransactionListResponse.next // "") == "" then "" else (.TransactionListResponse.marker // "") end' "${response_file}")
+    [[ -z "${next_marker}" ]] && break
+    marker="${next_marker}"
   done
+  if (( page >= 200 )); then
+    printf "Warning: hit the 200-page pagination cap; the journal may be incomplete.\n" >&2
+  fi
 
   # Merge every page's Transaction array and hand the combined response to the
   # Python ingester, which parses and persists the journal.

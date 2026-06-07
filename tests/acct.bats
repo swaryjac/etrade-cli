@@ -255,56 +255,54 @@ JSON
   [[ "$output" == *"invalid --since"* ]]
 }
 
-@test "sync: pages backward by date window until a short page" {
+@test "sync: pages by marker until the API drops the next link" {
   mock_auth_success
 
-  # Page A: a full window of 50 (oldest 2026-04-01). Page B: a short window of 10.
-  local pageA="$BATS_TEST_TMPDIR/A.json" pageB="$BATS_TEST_TMPDIR/B.json"
-  python3 - "$pageA" "$pageB" <<'PY'
+  # 60 records in the window. With count=50 the API returns page 0 (the 50
+  # highest ids) plus a marker and a next link; page 1 (requested with page 0's
+  # marker) returns the rest and omits next, stopping the loop. The pages overlap
+  # by one record (the marker), which ingest dedups.
+  local data="$BATS_TEST_TMPDIR/dataset.json"
+  python3 - "$data" <<'PY'
 import json, sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 def ms(y, m, d): return int(datetime(y, m, d, 12, tzinfo=ET).timestamp() * 1000)
-def rec(i, epoch): return {"transactionId": f"T{i:04d}", "transactionDate": epoch, "amount": 0,
+def rec(i, epoch): return {"transactionId": f"{1000 + i}", "transactionDate": epoch, "amount": 0,
   "transactionType": "Sold Short", "brokerage": {"product": {"symbol": "ZZZ", "securityType": "OPTN",
   "callPut": "PUT", "expiryYear": 26, "expiryMonth": 5, "expiryDay": 22, "strikePrice": 1},
   "quantity": 1, "price": 0, "fee": 0}}
-A = [rec(i, ms(2026, 5, 20) - i * 1000) for i in range(49)] + [rec(49, ms(2026, 4, 1))]
-B = [rec(100 + i, ms(2026, 3, 1) - i * 1000) for i in range(10)]
-for path, arr in ((sys.argv[1], A), (sys.argv[2], B)):
-    json.dump({"TransactionListResponse": {"Transaction": arr}}, open(path, "w"))
+recs = [rec(i, ms(2026, 5, 20) - i * 86400000) for i in range(60)]
+json.dump(recs, open(sys.argv[1], "w"))
 PY
-
-  local today; today=$(date +%m%d%Y)
-  send_etrade_query() {
-    local -n _p="$2"
-    if [ "${_p[endDate]}" = "$today" ]; then cp "$pageA" "$4"; else cp "$pageB" "$4"; fi
-  }
+  mock_marker_api "$data"
 
   export ETRADE_SYNC_DEBUG_DIR="$BATS_TEST_TMPDIR/pages"
-  run sync_account 1
+  run sync_account --since 2024-01-01 1
   [ "$status" -eq 0 ]
 
-  # exactly two windows fetched: full page A, then short page B stops the loop
+  # exactly two pages fetched: page 0 carries next, page 1 does not
   [ -f "$ETRADE_SYNC_DEBUG_DIR/page-0.json" ]
   [ -f "$ETRADE_SYNC_DEBUG_DIR/page-1.json" ]
   [ ! -f "$ETRADE_SYNC_DEBUG_DIR/page-2.json" ]
-  # the second window ends at page A's oldest date
-  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-1.endDate.txt")" = "$(date -d 2026-04-01 +%m%d%Y)" ]
-  # all 60 unique records are stored
+  # page 0 is requested with no marker; page 1 carries page 0's marker
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.marker.txt")" = "<none>" ]
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-1.marker.txt")" = "$(jq -r '.TransactionListResponse.marker' "$ETRADE_SYNC_DEBUG_DIR/page-0.json")" ]
+  # all 60 unique records are stored (the one-record page overlap is deduped)
   run jq -r '.record_count' "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.meta.json"
   [ "$output" -eq 60 ]
 }
 
-@test "sync: recovers same-day records when the API orders by id, not date" {
+@test "sync: recovers same-day records the date-window cursor dropped" {
   mock_auth_success
 
-  # Reproduce E*TRADE's real behavior: a page is sorted by transactionId DESC but
-  # the window is filtered by transactionDate, and the two orders disagree. A
-  # high-id record with an OLD date lands mid-page, so min(transactionDate) is not
-  # the page's id-boundary. The old code advanced the window to that stray old
-  # date and dropped the same-day records just past the id boundary.
+  # Reproduce the real drop: E*TRADE sorts a page by transactionId DESC but
+  # filters the window by transactionDate, and the two orders disagree. A high-id
+  # record with an OLD date lands mid-page, so a date-based cursor steps the
+  # window past the lowest-id same-day records (the 2026-01-20 id-800000..4
+  # straddle) and drops them. Marker pagination keys purely on id, never crossing
+  # a date boundary, so every record survives.
   local data="$BATS_TEST_TMPDIR/dataset.json"
   python3 - "$data" <<'PY'
 import json, sys
@@ -321,31 +319,12 @@ recs += [rec(800500, ms(2026, 1, 19))]                                  # OLD da
 recs += [rec(800000 + k, ms(2026, 1, 20, 10, 0, k)) for k in range(5)]  # 01-20, lowest ids (straddle boundary)
 json.dump(recs, open(sys.argv[1], "w"))
 PY
+  mock_marker_api "$data"
 
-  # Mock API: filter transactionDate-date in [startDate,endDate] inclusive,
-  # sort by transactionId DESC, return the newest `count`.
-  send_etrade_query() {
-    local -n _p="$2"
-    python3 - "$data" "${_p[startDate]}" "${_p[endDate]}" "${_p[count]}" "$4" <<'PY'
-import json, sys
-from datetime import datetime
-from zoneinfo import ZoneInfo
-ET = ZoneInfo("America/New_York")
-recs = json.load(open(sys.argv[1]))
-start, end, count, out = sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
-def d(s): return datetime.strptime(s, "%m%d%Y").date()
-def ed(ms): return datetime.fromtimestamp(int(ms)/1000, ET).date()
-s, e = d(start), d(end)
-inr = [r for r in recs if s <= ed(r["transactionDate"]) <= e]
-inr.sort(key=lambda r: int(r["transactionId"]), reverse=True)
-json.dump({"TransactionListResponse": {"Transaction": inr[:count]}}, open(out, "w"))
-PY
-  }
-
-  run sync_account 1
+  run sync_account --since 2024-01-01 1
   [ "$status" -eq 0 ]
-  # All 52 records must be stored -- including the two lowest-id 2026-01-20
-  # records that the old min(transactionDate) cursor dropped.
+  # All 52 records must be stored -- including the lowest-id 2026-01-20 records
+  # that the old date-window cursor dropped at the page boundary.
   run jq -r '.record_count' "$DATA_DIR/transactions/dBZOKt9xDrtRSAOl4MSiiA.meta.json"
   [ "$output" -eq 52 ]
 }
@@ -357,8 +336,8 @@ PY
   run sync_account 1
   [ "$status" -eq 0 ]
   [ -f "$ETRADE_SYNC_DEBUG_DIR/page-0.json" ]
-  # first window ends today (MMDDYYYY)
-  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.endDate.txt")" = "$(date +%m%d%Y)" ]
+  # the first page is requested with no marker
+  [ "$(cat "$ETRADE_SYNC_DEBUG_DIR/page-0.marker.txt")" = "<none>" ]
 }
 
 # ─── report (journal analytics; no API call) ────────────────────────────────────
